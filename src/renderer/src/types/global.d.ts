@@ -6,6 +6,7 @@ export interface APIInterface {
   // Settings
   getSettings: () => Promise<any>
   saveSettings: (settings: any) => Promise<void>
+  saveSettingsAndSyncServers: (settings: any) => Promise<void> // PŘIDÁNO
   getTheme: () => Promise<string>
   setTheme: (theme: string) => Promise<void>
 
@@ -18,6 +19,8 @@ export interface APIInterface {
   getDumps: () => Promise<any[]>
   clearDumps: () => Promise<void>
   exportDumps: () => Promise<boolean>
+  forceSaveDumps: () => Promise<boolean>
+  getDumpStats: () => Promise<any>
 
   // IDE integration
   openInIde: (params: any) => Promise<void>

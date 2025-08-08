@@ -14,9 +14,9 @@ export interface Server {
 export interface Settings {
   servers: Server[]
   theme: 'light' | 'dark' | 'system'
-  saveDumpsOnExit: boolean
   maxDumpsInMemory: number
   autoStartServers: boolean
+  autoSaveDumps: boolean
   ideIntegration: {
     enabled: boolean
     defaultIde: 'vscode' | 'jetbrains' | 'custom'
@@ -37,9 +37,9 @@ export class SettingsManager {
     this.defaultSettings = {
       servers: [],
       theme: 'system',
-      saveDumpsOnExit: false,
       maxDumpsInMemory: 1000,
       autoStartServers: true,
+      autoSaveDumps: true,
       ideIntegration: {
         enabled: false,
         defaultIde: 'vscode'
@@ -102,7 +102,7 @@ export class SettingsManager {
 
   async updateServer(serverId: string, updates: Partial<Server>): Promise<void> {
     const settings = await this.getSettings()
-    const serverIndex = settings.servers.findIndex((s) => s.id === serverId)
+    const serverIndex = settings.servers.findIndex(s => s.id === serverId)
 
     if (serverIndex >= 0) {
       settings.servers[serverIndex] = { ...settings.servers[serverIndex], ...updates }
@@ -112,7 +112,7 @@ export class SettingsManager {
 
   async removeServer(serverId: string): Promise<void> {
     const settings = await this.getSettings()
-    settings.servers = settings.servers.filter((s) => s.id !== serverId)
+    settings.servers = settings.servers.filter(s => s.id !== serverId)
     await this.saveSettings(settings)
   }
 }

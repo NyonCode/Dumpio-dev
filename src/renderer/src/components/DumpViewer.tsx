@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Dump, Server } from '../App'
 
 interface DumpViewerProps {
@@ -35,9 +35,24 @@ export function DumpViewer({ dumps, servers, onOpenInIde }: DumpViewerProps) {
   }
 
   const formatJson = (obj: any) => {
-    try {
-      return JSON.stringify(obj, null, 2)
-    } catch {
+    if (typeof obj === 'string') {
+      try {
+        // If it's already a string, try to parse it to check if it's valid JSON
+        const parsed = JSON.parse(obj)
+        return JSON.stringify(parsed, null, 2)
+      } catch {
+        // If parsing fails, it's just a plain string
+        return obj
+      }
+    } else if (obj !== null && typeof obj === 'object') {
+      // If it's already an object, just stringify it
+      try {
+        return JSON.stringify(obj, null, 2)
+      } catch {
+        return String(obj)
+      }
+    } else {
+      // For primitives, convert to string
       return String(obj)
     }
   }
@@ -195,9 +210,19 @@ export function DumpViewer({ dumps, servers, onOpenInIde }: DumpViewerProps) {
                     {/* Preview (when collapsed) */}
                     {!isExpanded && (
                       <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {typeof dump.payload === 'string'
-                          ? dump.payload
-                          : JSON.stringify(dump.payload).substring(0, 100)}
+                        {(() => {
+                          if (typeof dump.payload === 'string') {
+                            return dump.payload.substring(0, 100)
+                          } else if (dump.payload !== null && typeof dump.payload === 'object') {
+                            try {
+                              return JSON.stringify(dump.payload).substring(0, 100)
+                            } catch {
+                              return String(dump.payload).substring(0, 100)
+                            }
+                          } else {
+                            return String(dump.payload).substring(0, 100)
+                          }
+                        })()}
                         ...
                       </div>
                     )}

@@ -68,7 +68,9 @@ class MainApplication {
       minHeight: 600,
       show: false,
       autoHideMenuBar: true,
-      ...(process.platform === 'linux' ? { icon: join(__dirname, '../../resources/icon.png') } : {}),
+      ...(process.platform === 'linux'
+        ? { icon: join(__dirname, '../../resources/icon.png') }
+        : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -97,6 +99,9 @@ class MainApplication {
   private async initializeServers() {
     const settings = await this.settingsManager.getSettings()
 
+    this.dumpManager.setAutoSave(settings.autoSaveDumps)
+    this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
+
     // Add default server if none exist
     if (settings.servers.length === 0) {
       const defaultServer: Server = {
@@ -121,6 +126,15 @@ class MainApplication {
 
   private async startServer(server: Server) {
     try {
+      const existingServer = Array.from(this.tcpServers.values()).find((tcpServer) => {
+        const status = tcpServer.getStatus()
+        return status.host === server.host && status.port === server.port
+      })
+
+      if (existingServer) {
+        throw new Error(`Server already running on ${server.host}:${server.port}`)
+      }
+
       const tcpServer = new TCPServer(server.host, server.port)
 
       tcpServer.on('dump', (data) => {
@@ -140,7 +154,10 @@ class MainApplication {
 
       tcpServer.on('error', (error) => {
         console.error(`Server ${server.name} error:`, error)
-        this.mainWindow?.webContents.send('server-error', { serverId: server.id, error: error.message })
+        this.mainWindow?.webContents.send('server-error', {
+          serverId: server.id,
+          error: error.message
+        })
       })
 
       await tcpServer.start()
@@ -148,13 +165,13 @@ class MainApplication {
 
       console.log(`TCP Server "${server.name}" started on ${server.host}:${server.port}`)
       this.mainWindow?.webContents.send('server-started', server)
-
     } catch (error) {
       console.error(`Failed to start server ${server.name}:`, error)
       this.mainWindow?.webContents.send('server-error', {
         serverId: server.id,
         error: (error as Error).message
       })
+      throw error
     }
   }
 
@@ -186,10 +203,22 @@ class MainApplication {
       await this.startServer(server)
     })
 
+    // Enhanced settings handler that manages server lifecycle
+    ipcMain.handle('save-settings-and-sync-servers', async (_, settings) => {
+      const currentSettings = await this.settingsManager.getSettings()
+      await this.settingsManager.saveSettings(settings)
+
+      this.dumpManager.setAutoSave(settings.autoSaveDumps)
+      this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
+
+      // Sync server states based on new settings
+      await this.syncServersWithSettings(currentSettings.servers, settings.servers)
+    })
+
     // Dump management
     ipcMain.handle('get-dumps', () => this.dumpManager.getDumps())
-    ipcMain.handle('clear-dumps', () => {
-      this.dumpManager.clearDumps()
+    ipcMain.handle('clear-dumps', async () => {
+      await this.dumpManager.clearDumps()
       this.mainWindow?.webContents.send('dumps-cleared')
     })
 
@@ -214,6 +243,7 @@ class MainApplication {
     // Theme management
     ipcMain.handle('get-theme', () => this.settingsManager.getTheme())
     ipcMain.handle('set-theme', (_, theme) => this.settingsManager.setTheme(theme))
+    ipcMain.handle('get-dump-stats', () => this.dumpManager.getStats())
   }
 
   private cleanup() {
@@ -222,6 +252,51 @@ class MainApplication {
       tcpServer.stop().catch(console.error)
     }
     this.tcpServers.clear()
+
+    //Clean dump manager
+    this.dumpManager.cleanup().catch(console.error)
+  }
+
+  private async syncServersWithSettings(oldServers: Server[], newServers: Server[]) {
+    // Create maps for easier comparison
+    const oldServersMap = new Map(oldServers.map((s) => [s.id, s]))
+    const newServersMap = new Map(newServers.map((s) => [s.id, s]))
+
+    // Stop servers that are no longer active or have been removed
+    for (const [serverId, oldServer] of oldServersMap) {
+      const newServer = newServersMap.get(serverId)
+
+      if (!newServer || !newServer.active) {
+        // Server was removed or deactivated
+        if (this.tcpServers.has(serverId)) {
+          console.log(`Stopping server: ${oldServer.name}`)
+          await this.stopServer(serverId)
+        }
+      } else if (this.serverConfigChanged(oldServer, newServer)) {
+        // Server configuration changed (host, port, etc.)
+        if (this.tcpServers.has(serverId)) {
+          console.log(`Restarting server due to config change: ${newServer.name}`)
+          await this.stopServer(serverId)
+          await this.startServer(newServer)
+        }
+      }
+    }
+
+    // Start new servers or servers that became active
+    for (const [serverId, newServer] of newServersMap) {
+      if (newServer.active && !this.tcpServers.has(serverId)) {
+        console.log(`Starting new/activated server: ${newServer.name}`)
+        await this.startServer(newServer)
+      }
+    }
+  }
+
+  private serverConfigChanged(oldServer: Server, newServer: Server): boolean {
+    return (
+      oldServer.host !== newServer.host ||
+      oldServer.port !== newServer.port ||
+      oldServer.name !== newServer.name
+    )
   }
 }
 

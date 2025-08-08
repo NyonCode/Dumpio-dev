@@ -75,10 +75,12 @@ export class TCPServer extends EventEmitter {
               this.emit('dump', parsed)
             } catch (parseError) {
               console.error('Failed to parse JSON:', parseError)
-              // Emit as raw data dump
+              // Emit as raw data dump with the original line
               this.emit('dump', {
                 type: 'raw',
+                message: 'Raw data received (invalid JSON)',
                 data: line.trim(),
+                payload: line.trim(), // Keep original data as payload
                 origin: `${socket.remoteAddress}:${socket.remotePort}`,
                 timestamp: Date.now(),
                 flag: 'red'

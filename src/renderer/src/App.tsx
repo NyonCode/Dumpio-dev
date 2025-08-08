@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
@@ -31,6 +31,7 @@ export interface Settings {
   saveDumpsOnExit: boolean
   maxDumpsInMemory: number
   autoStartServers: boolean
+  autoSaveDumps: boolean
   ideIntegration: {
     enabled: boolean
     defaultIde: 'vscode' | 'jetbrains' | 'custom'
@@ -73,7 +74,7 @@ function App() {
 
   const setupEventListeners = () => {
     const unsubscribeDump = window.api.onDumpReceived((dump: Dump) => {
-      setDumps((prev) => [dump, ...prev].slice(0, 1000))
+      setDumps(prev => [dump, ...prev].slice(0, 1000))
     })
 
     const unsubscribeCleared = window.api.onDumpsCleared(() => {
@@ -81,11 +82,11 @@ function App() {
     })
 
     const unsubscribeServerStarted = window.api.onServerStarted((server: Server) => {
-      setServers((prev) => prev.map((s) => (s.id === server.id ? { ...s, active: true } : s)))
+      setServers(prev => prev.map(s => s.id === server.id ? { ...s, active: true } : s))
     })
 
     const unsubscribeServerStopped = window.api.onServerStopped((serverId: string) => {
-      setServers((prev) => prev.map((s) => (s.id === serverId ? { ...s, active: false } : s)))
+      setServers(prev => prev.map(s => s.id === serverId ? { ...s, active: false } : s))
     })
 
     return () => {
@@ -119,7 +120,8 @@ function App() {
 
   const handleSaveSettings = async (newSettings: Settings) => {
     try {
-      await window.api.saveSettings(newSettings)
+      // Use the enhanced settings handler that also syncs servers
+      await window.api.saveSettingsAndSyncServers(newSettings)
       setSettings(newSettings)
       setServers(newSettings.servers)
     } catch (error) {
@@ -127,7 +129,7 @@ function App() {
     }
   }
 
-  const filteredDumps = dumps.filter((dump) => {
+  const filteredDumps = dumps.filter(dump => {
     // Server filter
     if (selectedServerId !== 'all' && dump.serverId !== selectedServerId) {
       return false
@@ -141,9 +143,11 @@ function App() {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      const searchableText = [dump.origin, dump.channel, JSON.stringify(dump.payload)]
-        .join(' ')
-        .toLowerCase()
+      const searchableText = [
+        dump.origin,
+        dump.channel,
+        JSON.stringify(dump.payload)
+      ].join(' ').toLowerCase()
 
       if (!searchableText.includes(query)) {
         return false
