@@ -30,6 +30,7 @@ class MainApplication {
   private tcpServers: Map<string, TCPServer> = new Map()
   private settingsManager: SettingsManager
   private dumpManager: DumpManager
+  private autoSaveInterval: NodeJS.Timeout | null = null
 
   constructor() {
     this.settingsManager = new SettingsManager()
@@ -105,11 +106,13 @@ class MainApplication {
     const settings = await this.settingsManager.getSettings()
     console.log('📋 Settings loaded:', {
       serverCount: settings.servers.length,
-      maxDumpsInMemory: settings.maxDumpsInMemory
+      maxDumpsInMemory: settings.maxDumpsInMemory,
+      autoSaveDumps: settings.autoSaveDumps,
+      saveDumpsOnExit: settings.saveDumpsOnExit
     })
 
     // Load dumps if setting is enabled
-    if (settings.saveDumpsOnExit) {
+    if (settings.saveDumpsOnExit || settings.autoSaveDumps) {
       try {
         await this.dumpManager.loadDumps()
         console.log('Dumps loaded from previous session')
@@ -121,11 +124,36 @@ class MainApplication {
     // Set max dumps from settings
     this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
 
+    // Setup auto-save if enabled
+    this.setupAutoSave(settings.autoSaveDumps)
+
     // Initialize servers
     console.log('🌐 Initializing TCP servers...')
     await this.initializeServers()
 
     console.log('✅ Application initialization complete')
+  }
+
+  private setupAutoSave(enabled: boolean) {
+    // Clear existing interval
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval)
+      this.autoSaveInterval = null
+    }
+
+    if (enabled) {
+      console.log('📁 Setting up auto-save (every 5 seconds)')
+      this.autoSaveInterval = setInterval(async () => {
+        try {
+          await this.dumpManager.saveDumps()
+          console.log('Auto-saved dumps')
+        } catch (error) {
+          console.error('Auto-save failed:', error)
+        }
+      }, 5000) // Save every 5 seconds
+    } else {
+      console.log('📁 Auto-save disabled')
+    }
   }
 
   private async initializeServers() {
@@ -294,19 +322,25 @@ class MainApplication {
         this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
       }
 
+      // Update auto-save if changed
+      if (currentSettings.autoSaveDumps !== settings.autoSaveDumps) {
+        this.setupAutoSave(settings.autoSaveDumps)
+      }
+
       // Sync server states based on new settings
       await this.syncServersWithSettings(currentSettings.servers, settings.servers)
     })
 
     // Dump management
     ipcMain.handle('get-dumps', () => this.dumpManager.getDumps())
+
     ipcMain.handle('clear-dumps', async () => {
       this.dumpManager.clearDumps()
 
       // Also clear from disk if dumps are being saved
       try {
         const settings = await this.settingsManager.getSettings()
-        if (settings.saveDumpsOnExit) {
+        if (settings.saveDumpsOnExit || settings.autoSaveDumps) {
           await this.dumpManager.clearDumpsFromDisk()
         }
       } catch (error) {
@@ -327,6 +361,23 @@ class MainApplication {
         return this.dumpManager.exportDumps(result.filePath)
       }
       return false
+    })
+
+    // Force save dumps
+    ipcMain.handle('force-save-dumps', async () => {
+      try {
+        await this.dumpManager.saveDumps()
+        console.log('Force save completed')
+        return true
+      } catch (error) {
+        console.error('Force save failed:', error)
+        return false
+      }
+    })
+
+    // Get dump statistics
+    ipcMain.handle('get-dump-stats', () => {
+      return this.dumpManager.getStats()
     })
 
     // IDE integration (planned)
@@ -355,6 +406,12 @@ class MainApplication {
 
   private async cleanup() {
     console.log('Cleaning up TCP servers...')
+
+    // Clear auto-save interval
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval)
+      this.autoSaveInterval = null
+    }
 
     // Stop all TCP servers gracefully
     const stopPromises = Array.from(this.tcpServers.entries()).map(async ([serverId, tcpServer]) => {

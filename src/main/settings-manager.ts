@@ -15,6 +15,7 @@ export interface Settings {
   servers: Server[]
   theme: 'light' | 'dark' | 'system'
   saveDumpsOnExit: boolean
+  autoSaveDumps: boolean  // OPRAVA: Přidáno chybějící pole
   maxDumpsInMemory: number
   autoStartServers: boolean
   ideIntegration: {
@@ -38,6 +39,7 @@ export class SettingsManager {
       servers: [],
       theme: 'system',
       saveDumpsOnExit: false,
+      autoSaveDumps: false,  // OPRAVA: Přidáno výchozí hodnota
       maxDumpsInMemory: 1000,
       autoStartServers: true,
       ideIntegration: {
