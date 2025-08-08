@@ -1,4 +1,4 @@
-import { writeFile, readFile, mkdir, unlink } from 'fs/promises'
+import { writeFile, readFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { app } from 'electron'
 
@@ -15,84 +15,53 @@ export interface Dump {
 export class DumpManager {
   private dumps: Map<string, Dump> = new Map()
   private maxDumps = 1000
-  private autoSave = true
-  private saveDirectory: string
-  private dumpFilePath: string
-  private pendingSaves: Dump[] = []
-  private saveInterval: NodeJS.Timeout | null = null
+  private dumpsFilePath: string
 
   constructor() {
-    this.saveDirectory = join(app.getPath('userData'))
-    this.dumpFilePath = join(this.saveDirectory, 'dumps.json')
-    this.initializeAutoSave()
+    this.dumpsFilePath = join(app.getPath('userData'), 'dumps.json')
   }
 
-  private async initializeAutoSave() {
-    // Ensure directory exists
+  async loadDumps(): Promise<void> {
     try {
-      await mkdir(this.saveDirectory, { recursive: true })
-    } catch (error) {
-      console.error('Failed to create directory:', error)
-    }
-
-    // Load existing dumps
-    await this.loadDumps()
-
-    // Start auto-save interval (every 5 seconds)
-    this.startAutoSaveInterval()
-  }
-
-  private startAutoSaveInterval() {
-    if (this.saveInterval) {
-      clearInterval(this.saveInterval)
-    }
-
-    this.saveInterval = setInterval(async () => {
-      if (this.autoSave && this.pendingSaves.length > 0) {
-        await this.savePendingDumps()
-      }
-    }, 5000) // Save every 5 seconds
-  }
-
-  private async loadDumps() {
-    try {
-      const data = await readFile(this.dumpFilePath, 'utf8')
+      const data = await readFile(this.dumpsFilePath, 'utf8')
       const savedData = JSON.parse(data)
 
       if (savedData.dumps && Array.isArray(savedData.dumps)) {
-        for (const dump of savedData.dumps) {
+        // Load dumps but respect maxDumps limit
+        const dumpsToLoad = savedData.dumps
+          .sort((a: Dump, b: Dump) => b.timestamp - a.timestamp)
+          .slice(0, this.maxDumps)
+
+        this.dumps.clear()
+        dumpsToLoad.forEach((dump: Dump) => {
           this.dumps.set(dump.id, dump)
-        }
-        console.log(`Loaded ${savedData.dumps.length} dumps from ${this.dumpFilePath}`)
+        })
+
+        console.log(`Loaded ${this.dumps.size} dumps from disk`)
       }
     } catch (error) {
-      // File doesn't exist or is invalid, that's okay
-      console.log(`No existing dump file found: ${this.dumpFilePath}`)
+      // File doesn't exist or is invalid, start fresh
+      console.log('No saved dumps found, starting fresh')
     }
   }
 
-  private async savePendingDumps() {
-    if (this.pendingSaves.length === 0) return
-
+  async saveDumps(): Promise<void> {
     try {
-      // Get all current dumps (including pending ones)
-      const allDumps = this.getDumps()
+      // Ensure userData directory exists
+      await mkdir(app.getPath('userData'), { recursive: true })
 
+      const dumps = this.getDumps()
       const saveData = {
-        lastUpdated: new Date().toISOString(),
-        totalDumps: allDumps.length,
-        version: '1.0',
-        dumps: allDumps
+        savedAt: new Date().toISOString(),
+        totalDumps: dumps.length,
+        dumps: dumps
       }
 
-      // Save to file
-      await writeFile(this.dumpFilePath, JSON.stringify(saveData, null, 2), 'utf8')
-
-      console.log(`Saved ${this.pendingSaves.length} new dumps (${allDumps.length} total)`)
-      this.pendingSaves = []
-
+      await writeFile(this.dumpsFilePath, JSON.stringify(saveData, null, 2), 'utf8')
+      console.log(`Saved ${dumps.length} dumps to disk`)
     } catch (error) {
       console.error('Failed to save dumps:', error)
+      throw error
     }
   }
 
@@ -104,11 +73,6 @@ export class DumpManager {
     }
 
     this.dumps.set(dump.id, dump)
-
-    // Add to pending saves if auto-save is enabled
-    if (this.autoSave) {
-      this.pendingSaves.push(dump)
-    }
   }
 
   getDumps(): Dump[] {
@@ -119,18 +83,25 @@ export class DumpManager {
     return this.dumps.get(id)
   }
 
-  async clearDumps(): Promise<void> {
-    // Clear from memory
+  clearDumps(): void {
     this.dumps.clear()
-    this.pendingSaves = []
+  }
 
-    // Delete the dump file
+  async clearDumpsFromDisk(): Promise<void> {
     try {
-      await unlink(this.dumpFilePath)
-      console.log('Dump file deleted')
+      // Ensure userData directory exists
+      await mkdir(app.getPath('userData'), { recursive: true })
+
+      await writeFile(this.dumpsFilePath, JSON.stringify({
+        savedAt: new Date().toISOString(),
+        totalDumps: 0,
+        dumps: []
+      }, null, 2), 'utf8')
+
+      console.log('Dumps cleared from disk')
     } catch (error) {
-      // File might not exist, that's okay
-      console.log('No dump file to delete')
+      console.error('Failed to clear dumps from disk:', error)
+      throw error
     }
   }
 
@@ -152,10 +123,6 @@ export class DumpManager {
       const exportData = {
         exportDate: new Date().toISOString(),
         totalDumps: dumps.length,
-        metadata: {
-          version: '1.0',
-          source: 'TCP Dump Viewer Manual Export'
-        },
         dumps: dumps
       }
 
@@ -167,38 +134,10 @@ export class DumpManager {
     }
   }
 
-  // Auto-save configuration
-  setAutoSave(enabled: boolean): void {
-    this.autoSave = enabled
-    if (enabled) {
-      this.startAutoSaveInterval()
-    } else if (this.saveInterval) {
-      clearInterval(this.saveInterval)
-      this.saveInterval = null
-    }
-  }
-
-  isAutoSaveEnabled(): boolean {
-    return this.autoSave
-  }
-
-  async forceSave(): Promise<boolean> {
-    try {
-      await this.savePendingDumps()
-      return true
-    } catch (error) {
-      console.error('Failed to force save dumps:', error)
-      return false
-    }
-  }
-
   getStats() {
     const dumps = this.getDumps()
     const stats = {
       total: dumps.length,
-      pendingSaves: this.pendingSaves.length,
-      autoSaveEnabled: this.autoSave,
-      dumpFilePath: this.dumpFilePath,
       byServer: {} as Record<string, number>,
       byFlag: {} as Record<string, number>,
       oldestTimestamp: 0,
@@ -233,15 +172,7 @@ export class DumpManager {
     }
   }
 
-  // Cleanup on app exit
-  async cleanup(): Promise<void> {
-    if (this.saveInterval) {
-      clearInterval(this.saveInterval)
-    }
-
-    // Save any pending dumps before exit
-    if (this.pendingSaves.length > 0) {
-      await this.savePendingDumps()
-    }
+  getDumpsFilePath(): string {
+    return this.dumpsFilePath
   }
 }

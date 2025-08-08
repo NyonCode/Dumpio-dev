@@ -6,6 +6,7 @@ export class TCPServer extends EventEmitter {
   private host: string
   private port: number
   private isRunning = false
+  private isShuttingDown = false
 
   constructor(host: string, port: number) {
     super()
@@ -18,19 +19,39 @@ export class TCPServer extends EventEmitter {
       throw new Error('Server is already running')
     }
 
+    if (this.isShuttingDown) {
+      throw new Error('Server is shutting down')
+    }
+
     return new Promise((resolve, reject) => {
       this.server = createServer((socket: Socket) => {
         this.handleConnection(socket)
       })
 
-      this.server.on('error', (error) => {
-        this.emit('error', error)
-        reject(error)
+      this.server.on('error', (error: any) => {
+        console.error(`TCP Server error on ${this.host}:${this.port}:`, error)
+        if (error.code === 'EADDRINUSE') {
+          const errorMsg = `Port ${this.port} is already in use on ${this.host}`
+          this.emit('error', new Error(errorMsg))
+          reject(new Error(errorMsg))
+        } else if (error.code === 'EADDRNOTAVAIL') {
+          const errorMsg = `Address ${this.host} is not available`
+          this.emit('error', new Error(errorMsg))
+          reject(new Error(errorMsg))
+        } else {
+          this.emit('error', error)
+          reject(error)
+        }
       })
 
-      this.server.listen(this.port, this.host, () => {
+      // For localhost, try IPv4 first
+      const actualHost = this.host === 'localhost' ? '127.0.0.1' : this.host
+
+      console.log(`Starting TCP server on ${actualHost}:${this.port}`)
+
+      this.server.listen(this.port, actualHost, () => {
         this.isRunning = true
-        console.log(`TCP Server listening on ${this.host}:${this.port}`)
+        console.log(`✅ TCP Server successfully started on ${actualHost}:${this.port}`)
         resolve()
       })
     })
@@ -41,10 +62,21 @@ export class TCPServer extends EventEmitter {
       return
     }
 
+    this.isShuttingDown = true
+
     return new Promise((resolve) => {
+      // Close all connections first
+      this.server!.getConnections((err, count) => {
+        if (count > 0) {
+          console.log(`Closing ${count} active connections on ${this.host}:${this.port}`)
+        }
+      })
+
       this.server!.close(() => {
         this.isRunning = false
+        this.isShuttingDown = false
         this.server = null
+        console.log(`TCP Server stopped on ${this.host}:${this.port}`)
         resolve()
       })
     })
@@ -75,12 +107,10 @@ export class TCPServer extends EventEmitter {
               this.emit('dump', parsed)
             } catch (parseError) {
               console.error('Failed to parse JSON:', parseError)
-              // Emit as raw data dump with the original line
+              // Emit as raw data dump
               this.emit('dump', {
                 type: 'raw',
-                message: 'Raw data received (invalid JSON)',
                 data: line.trim(),
-                payload: line.trim(), // Keep original data as payload
                 origin: `${socket.remoteAddress}:${socket.remotePort}`,
                 timestamp: Date.now(),
                 flag: 'red'
@@ -103,20 +133,19 @@ export class TCPServer extends EventEmitter {
     })
 
     // Send welcome message
-    socket.write(
-      JSON.stringify({
-        type: 'welcome',
-        message: 'Connected to TCP Dump Viewer',
-        timestamp: Date.now()
-      }) + '\n'
-    )
+    socket.write(JSON.stringify({
+      type: 'welcome',
+      message: 'Connected to TCP Dump Viewer',
+      timestamp: Date.now()
+    }) + '\n')
   }
 
   getStatus() {
     return {
       isRunning: this.isRunning,
       host: this.host,
-      port: this.port
+      port: this.port,
+      isShuttingDown: this.isShuttingDown
     }
   }
 }

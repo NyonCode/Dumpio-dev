@@ -14,9 +14,9 @@ export interface Server {
 export interface Settings {
   servers: Server[]
   theme: 'light' | 'dark' | 'system'
+  saveDumpsOnExit: boolean
   maxDumpsInMemory: number
   autoStartServers: boolean
-  autoSaveDumps: boolean
   ideIntegration: {
     enabled: boolean
     defaultIde: 'vscode' | 'jetbrains' | 'custom'
@@ -37,9 +37,9 @@ export class SettingsManager {
     this.defaultSettings = {
       servers: [],
       theme: 'system',
+      saveDumpsOnExit: false,
       maxDumpsInMemory: 1000,
       autoStartServers: true,
-      autoSaveDumps: true,
       ideIntegration: {
         enabled: false,
         defaultIde: 'vscode'
