@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
-import { DumpViewer } from './components/DumpViewer'
+import { DumpViewer } from './components/dump-viewer'
 import { SettingsModal } from './components/SettingsModal'
 import './assets/index.css'
 
@@ -32,6 +32,8 @@ export interface Settings {
   maxDumpsInMemory: number
   autoStartServers: boolean
   autoSaveDumps: boolean
+  viewMode: 'detailed' | 'compact'
+  viewerMode: 'professional' | 'simple'
   ideIntegration: {
     enabled: boolean
     defaultIde: 'vscode' | 'jetbrains' | 'custom'
@@ -74,7 +76,7 @@ function App() {
 
   const setupEventListeners = () => {
     const unsubscribeDump = window.api.onDumpReceived((dump: Dump) => {
-      setDumps((prev) => [dump, ...prev].slice(0, 1000))
+      setDumps(prev => [dump, ...prev].slice(0, 1000))
     })
 
     const unsubscribeCleared = window.api.onDumpsCleared(() => {
@@ -82,11 +84,11 @@ function App() {
     })
 
     const unsubscribeServerStarted = window.api.onServerStarted((server: Server) => {
-      setServers((prev) => prev.map((s) => (s.id === server.id ? { ...s, active: true } : s)))
+      setServers(prev => prev.map(s => s.id === server.id ? { ...s, active: true } : s))
     })
 
     const unsubscribeServerStopped = window.api.onServerStopped((serverId: string) => {
-      setServers((prev) => prev.map((s) => (s.id === serverId ? { ...s, active: false } : s)))
+      setServers(prev => prev.map(s => s.id === serverId ? { ...s, active: false } : s))
     })
 
     return () => {
@@ -110,7 +112,6 @@ function App() {
     try {
       const success = await window.api.exportDumps()
       if (success) {
-        // Could show success notification
         console.log('Dumps exported successfully')
       }
     } catch (error) {
@@ -120,7 +121,6 @@ function App() {
 
   const handleSaveSettings = async (newSettings: Settings) => {
     try {
-      // Use the enhanced settings handler that also syncs servers
       await window.api.saveSettingsAndSyncServers(newSettings)
       setSettings(newSettings)
       setServers(newSettings.servers)
@@ -129,7 +129,7 @@ function App() {
     }
   }
 
-  const filteredDumps = dumps.filter((dump) => {
+  const filteredDumps = dumps.filter(dump => {
     // Server filter
     if (selectedServerId !== 'all' && dump.serverId !== selectedServerId) {
       return false
@@ -143,9 +143,11 @@ function App() {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      const searchableText = [dump.origin, dump.channel, JSON.stringify(dump.payload)]
-        .join(' ')
-        .toLowerCase()
+      const searchableText = [
+        dump.origin,
+        dump.channel,
+        JSON.stringify(dump.payload)
+      ].join(' ').toLowerCase()
 
       if (!searchableText.includes(query)) {
         return false
@@ -186,11 +188,14 @@ function App() {
             onExportDumps={handleExportDumps}
             totalDumps={dumps.length}
             filteredDumps={filteredDumps.length}
+            recentActivity={dumps.filter(d => (Date.now() - d.timestamp) < 60000).length}
           />
 
           <DumpViewer
             dumps={filteredDumps}
             servers={servers}
+            viewMode={settings.viewMode}
+            viewerMode={settings.viewerMode}
             onOpenInIde={(file, line) => {
               window.api.openInIde({ file, line, ide: settings.ideIntegration.defaultIde })
             }}
