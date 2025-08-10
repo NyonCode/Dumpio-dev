@@ -208,7 +208,7 @@ class MainApplication {
       }
 
       // Check if port is already in use by another server
-      const portInUse = Array.from(this.tcpServers.values()).find(tcpServer => {
+      const portInUse = Array.from(this.tcpServers.values()).find((tcpServer) => {
         const status = tcpServer.getStatus()
         return status.host === server.host && status.port === server.port && status.isRunning
       })
@@ -249,7 +249,6 @@ class MainApplication {
 
       console.log(`TCP Server "${server.name}" started on ${server.host}:${server.port}`)
       this.mainWindow?.webContents.send('server-started', server)
-
     } catch (error) {
       console.error(`Failed to start server ${server.name}:`, error)
       // Make sure server is not in the map if it failed to start
@@ -414,20 +413,22 @@ class MainApplication {
     }
 
     // Stop all TCP servers gracefully
-    const stopPromises = Array.from(this.tcpServers.entries()).map(async ([serverId, tcpServer]) => {
-      try {
-        console.log(`Stopping server ${serverId}...`)
-        await tcpServer.stop()
-      } catch (error) {
-        console.error(`Error stopping server ${serverId}:`, error)
+    const stopPromises = Array.from(this.tcpServers.entries()).map(
+      async ([serverId, tcpServer]) => {
+        try {
+          console.log(`Stopping server ${serverId}...`)
+          await tcpServer.stop()
+        } catch (error) {
+          console.error(`Error stopping server ${serverId}:`, error)
+        }
       }
-    })
+    )
 
     // Wait for all servers to stop, but don't wait forever
     try {
       await Promise.race([
         Promise.all(stopPromises),
-        new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout
+        new Promise((resolve) => setTimeout(resolve, 5000)) // 5 second timeout
       ])
     } catch (error) {
       console.error('Error during cleanup:', error)
@@ -439,8 +440,8 @@ class MainApplication {
 
   private async syncServersWithSettings(oldServers: Server[], newServers: Server[]) {
     // Create maps for easier comparison
-    const oldServersMap = new Map(oldServers.map(s => [s.id, s]))
-    const newServersMap = new Map(newServers.map(s => [s.id, s]))
+    const oldServersMap = new Map(oldServers.map((s) => [s.id, s]))
+    const newServersMap = new Map(newServers.map((s) => [s.id, s]))
 
     // Stop servers that are no longer active or have been removed
     for (const [serverId, oldServer] of oldServersMap) {
@@ -458,7 +459,7 @@ class MainApplication {
           console.log(`Restarting server due to config change: ${newServer.name}`)
           await this.stopServer(serverId)
           // Add a small delay to ensure port is released
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
           try {
             await this.startServer(newServer)
           } catch (error) {

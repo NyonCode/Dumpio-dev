@@ -133,11 +133,13 @@ export class TCPServer extends EventEmitter {
     })
 
     // Send welcome message
-    socket.write(JSON.stringify({
-      type: 'welcome',
-      message: 'Connected to TCP Dump Viewer',
-      timestamp: Date.now()
-    }) + '\n')
+    socket.write(
+      JSON.stringify({
+        type: 'welcome',
+        message: 'Connected to TCP Dump Viewer',
+        timestamp: Date.now()
+      }) + '\n'
+    )
   }
 
   getStatus() {

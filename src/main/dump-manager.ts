@@ -13,7 +13,7 @@ export interface Dump {
 }
 
 export class DumpManager {
-  private dumps: Dump[] = []  // OPRAVA: Použit Array místo Map pro zachování pořadí
+  private dumps: Dump[] = [] // OPRAVA: Použit Array místo Map pro zachování pořadí
   private maxDumps = 1000
   private dumpsFilePath: string
   private autoSaveInterval: NodeJS.Timeout | null = null
@@ -80,11 +80,11 @@ export class DumpManager {
   }
 
   getDumps(): Dump[] {
-    return [...this.dumps]  // Return copy to prevent external modification
+    return [...this.dumps] // Return copy to prevent external modification
   }
 
   getDump(id: string): Dump | undefined {
-    return this.dumps.find(dump => dump.id === id)
+    return this.dumps.find((dump) => dump.id === id)
   }
 
   clearDumps(): void {
@@ -97,11 +97,19 @@ export class DumpManager {
       // Ensure userData directory exists
       await mkdir(app.getPath('userData'), { recursive: true })
 
-      await writeFile(this.dumpsFilePath, JSON.stringify({
-        savedAt: new Date().toISOString(),
-        totalDumps: 0,
-        dumps: []
-      }, null, 2), 'utf8')
+      await writeFile(
+        this.dumpsFilePath,
+        JSON.stringify(
+          {
+            savedAt: new Date().toISOString(),
+            totalDumps: 0,
+            dumps: []
+          },
+          null,
+          2
+        ),
+        'utf8'
+      )
 
       this.hasUnsavedChanges = false
       console.log('Dumps cleared from disk')
@@ -112,15 +120,13 @@ export class DumpManager {
   }
 
   getDumpsByServer(serverId: string): Dump[] {
-    return this.dumps.filter(dump => dump.serverId === serverId)
+    return this.dumps.filter((dump) => dump.serverId === serverId)
   }
 
   getDumpsByFlag(flags: string[]): Dump[] {
     if (flags.length === 0) return this.getDumps()
 
-    return this.dumps.filter(dump =>
-      dump.flag && flags.includes(dump.flag)
-    )
+    return this.dumps.filter((dump) => dump.flag && flags.includes(dump.flag))
   }
 
   async exportDumps(filePath: string): Promise<boolean> {
@@ -149,10 +155,10 @@ export class DumpManager {
     }
 
     if (this.dumps.length > 0) {
-      stats.oldestTimestamp = Math.min(...this.dumps.map(d => d.timestamp))
-      stats.newestTimestamp = Math.max(...this.dumps.map(d => d.timestamp))
+      stats.oldestTimestamp = Math.min(...this.dumps.map((d) => d.timestamp))
+      stats.newestTimestamp = Math.max(...this.dumps.map((d) => d.timestamp))
 
-      this.dumps.forEach(dump => {
+      this.dumps.forEach((dump) => {
         // Count by server
         stats.byServer[dump.serverId] = (stats.byServer[dump.serverId] || 0) + 1
 

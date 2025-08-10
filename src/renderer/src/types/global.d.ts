@@ -17,7 +17,7 @@ declare global {
       startServer: (server: any) => Promise<void>
       stopServer: (serverId: string) => Promise<void>
       restartServer: (server: any) => Promise<void>
-      getServerStatus: () => Promise<{[key: string]: any}>
+      getServerStatus: () => Promise<{ [key: string]: any }>
 
       // Dump management
       getDumps: () => Promise<any[]>

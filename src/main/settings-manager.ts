@@ -15,7 +15,7 @@ export interface Settings {
   servers: Server[]
   theme: 'light' | 'dark' | 'system'
   saveDumpsOnExit: boolean
-  autoSaveDumps: boolean  // OPRAVA: Přidáno chybějící pole
+  autoSaveDumps: boolean // OPRAVA: Přidáno chybějící pole
   maxDumpsInMemory: number
   autoStartServers: boolean
   ideIntegration: {
@@ -39,7 +39,7 @@ export class SettingsManager {
       servers: [],
       theme: 'system',
       saveDumpsOnExit: false,
-      autoSaveDumps: false,  // OPRAVA: Přidáno výchozí hodnota
+      autoSaveDumps: false, // OPRAVA: Přidáno výchozí hodnota
       maxDumpsInMemory: 1000,
       autoStartServers: true,
       ideIntegration: {
@@ -104,7 +104,7 @@ export class SettingsManager {
 
   async updateServer(serverId: string, updates: Partial<Server>): Promise<void> {
     const settings = await this.getSettings()
-    const serverIndex = settings.servers.findIndex(s => s.id === serverId)
+    const serverIndex = settings.servers.findIndex((s) => s.id === serverId)
 
     if (serverIndex >= 0) {
       settings.servers[serverIndex] = { ...settings.servers[serverIndex], ...updates }
@@ -114,7 +114,7 @@ export class SettingsManager {
 
   async removeServer(serverId: string): Promise<void> {
     const settings = await this.getSettings()
-    settings.servers = settings.servers.filter(s => s.id !== serverId)
+    settings.servers = settings.servers.filter((s) => s.id !== serverId)
     await this.saveSettings(settings)
   }
 }
