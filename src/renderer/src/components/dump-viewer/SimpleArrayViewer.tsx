@@ -12,7 +12,7 @@ export function SimpleArrayViewer({ value, expanded = true }: SimpleArrayViewerP
   const dataToShow = value?.data || value
 
   const toggleItem = (key: string) => {
-    setExpandedItems(prev => {
+    setExpandedItems((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(key)) {
         newSet.delete(key)
@@ -59,7 +59,9 @@ export function SimpleArrayViewer({ value, expanded = true }: SimpleArrayViewerP
     }
 
     if (typeof val === 'boolean') {
-      return <span className="text-purple-600 dark:text-purple-400 font-medium">{val.toString()}</span>
+      return (
+        <span className="text-purple-600 dark:text-purple-400 font-medium">{val.toString()}</span>
+      )
     }
 
     if (Array.isArray(val)) {
@@ -82,9 +84,7 @@ export function SimpleArrayViewer({ value, expanded = true }: SimpleArrayViewerP
               {val.map((item, index) => (
                 <div key={index} className="flex gap-3">
                   <span className="text-slate-500 font-mono text-sm w-8">[{index}]</span>
-                  <div className="flex-1">
-                    {renderValue(item, `${key}[${index}]`, level + 1)}
-                  </div>
+                  <div className="flex-1">{renderValue(item, `${key}[${index}]`, level + 1)}</div>
                 </div>
               ))}
             </div>
@@ -137,13 +137,12 @@ export function SimpleArrayViewer({ value, expanded = true }: SimpleArrayViewerP
     return (
       <div className="space-y-2 font-mono text-sm">
         {keys.map((key) => (
-          <div key={key} className="flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 -mx-2">
-            <span className="text-blue-600 dark:text-blue-400 font-medium min-w-fit">
-              "{key}":
-            </span>
-            <div className="flex-1">
-              {renderValue(dataToShow[key], key)}
-            </div>
+          <div
+            key={key}
+            className="flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 -mx-2"
+          >
+            <span className="text-blue-600 dark:text-blue-400 font-medium min-w-fit">"{key}":</span>
+            <div className="flex-1">{renderValue(dataToShow[key], key)}</div>
           </div>
         ))}
       </div>
@@ -151,9 +150,5 @@ export function SimpleArrayViewer({ value, expanded = true }: SimpleArrayViewerP
   }
 
   // Pro jednoduché hodnoty nebo pole
-  return (
-    <div className="font-mono text-sm">
-      {renderValue(dataToShow, 'root')}
-    </div>
-  )
+  return <div className="font-mono text-sm">{renderValue(dataToShow, 'root')}</div>
 }

@@ -31,14 +31,14 @@ export interface DumpContentProps {
   isExpanded: boolean
   fileLocation?: FileLocation
   onOpenInIde: (file: string, line: number) => void
-  onCopy: (format: CopyFormat) => void
-  copySuccess: CopyResult | null
+  onCopy: () => void
+  copySuccess: boolean
 }
 
 export interface DumpPayloadProps {
   dump: Dump
-  onCopy: (format: CopyFormat) => void
-  copySuccess: CopyResult | null
+  onCopy: () => void
+  copySuccess: boolean
   viewerMode?: 'professional' | 'simple'
 }
 
@@ -46,13 +46,6 @@ export interface JsonViewerProps {
   value: any
   depth?: number
   expanded?: boolean
-}
-
-export interface CopyMenuProps {
-  onCopy: (format: CopyFormat) => void
-  copySuccess: CopyResult | null
-  isOpen: boolean
-  onToggle: () => void
 }
 
 export interface DumpToolbarProps {
@@ -92,13 +85,6 @@ export interface DumpStats {
   byFlag: Record<string, number>
   byType: Record<string, number>
   recentActivity: number
-}
-
-export type CopyFormat = 'json' | 'array' | 'raw'
-
-export interface CopyResult {
-  type: CopyFormat
-  success: boolean
 }
 
 export const FLAG_COLORS = {
@@ -147,11 +133,39 @@ export const FLAG_COLORS = {
 } as const
 
 export const SERVER_COLORS = {
-  blue: { bg: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-300', bgLight: 'bg-blue-100 dark:bg-blue-900/30' },
-  red: { bg: 'bg-red-500', text: 'text-red-700 dark:text-red-300', bgLight: 'bg-red-100 dark:bg-red-900/30' },
-  green: { bg: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300', bgLight: 'bg-emerald-100 dark:bg-emerald-900/30' },
-  yellow: { bg: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300', bgLight: 'bg-amber-100 dark:bg-amber-900/30' },
-  purple: { bg: 'bg-purple-500', text: 'text-purple-700 dark:text-purple-300', bgLight: 'bg-purple-100 dark:bg-purple-900/30' },
-  pink: { bg: 'bg-pink-500', text: 'text-pink-700 dark:text-pink-300', bgLight: 'bg-pink-100 dark:bg-pink-900/30' },
-  gray: { bg: 'bg-gray-500', text: 'text-gray-700 dark:text-gray-300', bgLight: 'bg-gray-100 dark:bg-gray-900/30' }
+  blue: {
+    bg: 'bg-blue-500',
+    text: 'text-blue-700 dark:text-blue-300',
+    bgLight: 'bg-blue-100 dark:bg-blue-900/30'
+  },
+  red: {
+    bg: 'bg-red-500',
+    text: 'text-red-700 dark:text-red-300',
+    bgLight: 'bg-red-100 dark:bg-red-900/30'
+  },
+  green: {
+    bg: 'bg-emerald-500',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    bgLight: 'bg-emerald-100 dark:bg-emerald-900/30'
+  },
+  yellow: {
+    bg: 'bg-amber-500',
+    text: 'text-amber-700 dark:text-amber-300',
+    bgLight: 'bg-amber-100 dark:bg-amber-900/30'
+  },
+  purple: {
+    bg: 'bg-purple-500',
+    text: 'text-purple-700 dark:text-purple-300',
+    bgLight: 'bg-purple-100 dark:bg-purple-900/30'
+  },
+  pink: {
+    bg: 'bg-pink-500',
+    text: 'text-pink-700 dark:text-pink-300',
+    bgLight: 'bg-pink-100 dark:bg-pink-900/30'
+  },
+  gray: {
+    bg: 'bg-gray-500',
+    text: 'text-gray-700 dark:text-gray-300',
+    bgLight: 'bg-gray-100 dark:bg-gray-900/30'
+  }
 } as const

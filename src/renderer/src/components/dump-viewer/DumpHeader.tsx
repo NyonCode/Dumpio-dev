@@ -1,7 +1,7 @@
 import { DumpHeaderProps, SERVER_COLORS } from './types'
 import { formatTimestamp } from './utils'
 
-export function DumpHeader({ dump, server, onToggleExpand, isExpanded }: DumpHeaderProps) {
+export function DumpHeader({ dump, server }: DumpHeaderProps) {
   const serverStyle = server
     ? SERVER_COLORS[server.color as keyof typeof SERVER_COLORS]
     : SERVER_COLORS.gray

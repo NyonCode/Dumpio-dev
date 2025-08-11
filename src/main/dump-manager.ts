@@ -13,9 +13,9 @@ export interface Dump {
 }
 
 export class DumpManager {
-  private dumps: Dump[] = [] // OPRAVA: Použit Array místo Map pro zachování pořadí
+  private dumps: Dump[] = []
   private maxDumps = 1000
-  private dumpsFilePath: string
+  private readonly dumpsFilePath: string
   private autoSaveInterval: NodeJS.Timeout | null = null
   private autoSaveEnabled = false
   private hasUnsavedChanges = false
@@ -24,7 +24,6 @@ export class DumpManager {
     this.dumpsFilePath = join(app.getPath('userData'), 'dumps.json')
   }
 
-  // OPRAVA: Vždy načte dumps pokud existují, nezávisle na nastavení
   async loadDumps(): Promise<Dump[]> {
     try {
       const data = await readFile(this.dumpsFilePath, 'utf8')

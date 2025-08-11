@@ -266,7 +266,9 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                 </label>
                 <select
                   value={localSettings.theme}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value as any }))}
+                  onChange={(e) =>
+                    setLocalSettings((prev) => ({ ...prev, theme: e.target.value as any }))
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="light">Light</option>
@@ -281,7 +283,12 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                 </label>
                 <select
                   value={localSettings.viewMode}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, viewMode: e.target.value as 'detailed' | 'compact' }))}
+                  onChange={(e) =>
+                    setLocalSettings((prev) => ({
+                      ...prev,
+                      viewMode: e.target.value as 'detailed' | 'compact'
+                    }))
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="detailed">Detailed</option>
@@ -298,32 +305,42 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                 </label>
                 <select
                   value={localSettings.viewerMode}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, viewerMode: e.target.value as 'professional' | 'simple' }))}
+                  onChange={(e) =>
+                    setLocalSettings((prev) => ({
+                      ...prev,
+                      viewerMode: e.target.value as 'professional' | 'simple'
+                    }))
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="professional">Professional</option>
                   <option value="simple">Simple</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Professional: Rich type badges and detailed information<br/>
+                  Professional: Rich type badges and detailed information
+                  <br />
                   Simple: Clean, minimal JSON-like display
                 </p>
               </div>
 
               <div className="space-y-4">
-                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">Dump Management</h5>
+                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Dump Management
+                </h5>
 
                 <div>
                   <label className="flex items-center">
                     <input
                       type="checkbox"
                       checked={localSettings.autoSaveDumps}
-                      onChange={(e) => setLocalSettings(prev => ({ ...prev, autoSaveDumps: e.target.checked }))}
+                      onChange={(e) =>
+                        setLocalSettings((prev) => ({ ...prev, autoSaveDumps: e.target.checked }))
+                      }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-            Automatically save dumps to disk
-          </span>
+                      Automatically save dumps to disk
+                    </span>
                   </label>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Dumps will be saved every 5 seconds to dumps.json file
@@ -335,12 +352,14 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                     <input
                       type="checkbox"
                       checked={localSettings.saveDumpsOnExit}
-                      onChange={(e) => setLocalSettings(prev => ({ ...prev, saveDumpsOnExit: e.target.checked }))}
+                      onChange={(e) =>
+                        setLocalSettings((prev) => ({ ...prev, saveDumpsOnExit: e.target.checked }))
+                      }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-            Force save dumps when application exits
-          </span>
+                      Force save dumps when application exits
+                    </span>
                   </label>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Ensures all dumps are saved before closing
@@ -353,12 +372,14 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                   <input
                     type="checkbox"
                     checked={localSettings.autoStartServers}
-                    onChange={(e) => setLocalSettings(prev => ({ ...prev, autoStartServers: e.target.checked }))}
+                    onChange={(e) =>
+                      setLocalSettings((prev) => ({ ...prev, autoStartServers: e.target.checked }))
+                    }
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-          Auto-start servers on application launch
-        </span>
+                    Auto-start servers on application launch
+                  </span>
                 </label>
               </div>
 
@@ -371,7 +392,12 @@ export function SettingsModal({ settings, onClose, onSave }: SettingsModalProps)
                   min="100"
                   max="10000"
                   value={localSettings.maxDumpsInMemory}
-                  onChange={(e) => setLocalSettings(prev => ({ ...prev, maxDumpsInMemory: parseInt(e.target.value) }))}
+                  onChange={(e) =>
+                    setLocalSettings((prev) => ({
+                      ...prev,
+                      maxDumpsInMemory: parseInt(e.target.value)
+                    }))
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

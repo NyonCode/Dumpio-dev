@@ -145,7 +145,7 @@ export function getDumpMetrics(payload: any): DumpMetric[] {
       color:
         levelColors[payload.level as keyof typeof levelColors] ||
         'text-slate-600 dark:text-slate-400',
-      icon: 'check'
+      icon: 'log'
     })
   }
 
@@ -163,7 +163,7 @@ export function getDumpMetrics(payload: any): DumpMetric[] {
       label: 'Status',
       value: status.toString(),
       color: statusColor,
-      icon: 'check'
+      icon: 'http'
     })
   }
 

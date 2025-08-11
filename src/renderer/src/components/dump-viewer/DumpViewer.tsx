@@ -12,7 +12,13 @@ interface DumpViewerProps {
   viewerMode?: 'professional' | 'simple'
 }
 
-export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed', viewerMode = 'professional' }: DumpViewerProps) {
+export function DumpViewer({
+  dumps,
+  servers,
+  onOpenInIde,
+  viewMode = 'detailed',
+  viewerMode = 'professional'
+}: DumpViewerProps) {
   const [expandedDump, setExpandedDump] = useState<string | null>(null)
   const [newDumpIds, setNewDumpIds] = useState<Set<string>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
@@ -34,10 +40,10 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
 
       // Kontrola jestli je dump skutečně nový (ne starší než 1 sekunda)
       const now = Date.now()
-      const isRecentDump = (now - latestDumpTime) < 1000
+      const isRecentDump = now - latestDumpTime < 1000
 
       if (isRecentDump && !newDumpIds.has(latestDump.id)) {
-        setNewDumpIds(prev => new Set([...prev, latestDump.id]))
+        setNewDumpIds((prev) => new Set([...prev, latestDump.id]))
 
         // Auto scroll pouze pro nové dumpy
         if (autoScroll && containerRef.current) {
@@ -46,7 +52,7 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
 
         // Odebrat highlight po 2 sekundách (ne 3)
         setTimeout(() => {
-          setNewDumpIds(prev => {
+          setNewDumpIds((prev) => {
             const newSet = new Set(prev)
             newSet.delete(latestDump.id)
             return newSet
@@ -68,7 +74,7 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
     const now = Date.now()
     const oneMinuteAgo = now - 60000
 
-    dumps.forEach(dump => {
+    dumps.forEach((dump) => {
       // By server
       const server = getServerById(dump.serverId)
       const serverName = server?.name || 'Unknown Server'
@@ -102,10 +108,8 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
   }, [dumps])
 
   const toggleDumpType = (type: string) => {
-    setSelectedDumpTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
+    setSelectedDumpTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     )
   }
 
@@ -131,7 +135,9 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
         className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 scroll-smooth"
       >
         <div className="max-w-7xl mx-auto py-6 px-6">
-          <div className={`transition-all duration-300 ease-in-out ${viewMode === 'compact' ? 'space-y-2' : 'space-y-6'}`}>
+          <div
+            className={`transition-all duration-300 ease-in-out ${viewMode === 'compact' ? 'space-y-2' : 'space-y-6'}`}
+          >
             {filteredDumps.map((dump) => {
               const server = getServerById(dump.serverId)
               const isExpanded = expandedDump === dump.id
@@ -156,8 +162,18 @@ export function DumpViewer({ dumps, servers, onOpenInIde, viewMode = 'detailed',
             {filteredDumps.length > 100 && (
               <div className="text-center py-8">
                 <div className="inline-flex items-center px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
-                  <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-5 h-5 text-slate-400 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <span className="text-sm text-slate-600 dark:text-slate-400">
                     Showing first {filteredDumps.length} dumps for performance

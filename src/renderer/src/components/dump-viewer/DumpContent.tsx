@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { DumpContentProps } from './types'
-import { CopyMenu } from './CopyMenu'
+import { CopyButton } from './CopyButton'
 import { getDumpTypeInfo, getDumpTitle, getDumpMetrics } from './utils'
 import { getIconComponent } from './icons'
 
@@ -12,9 +11,7 @@ export function DumpContent({
   onOpenInIde,
   onCopy,
   copySuccess
-}: DumpContentProps) {
-  const [showCopyMenu, setShowCopyMenu] = useState(false)
-
+}: DumpContentProps): JSX.Element {
   const typeInfo = getDumpTypeInfo(dump.payload)
   const metrics = getDumpMetrics(dump.payload)
 
@@ -74,15 +71,11 @@ export function DumpContent({
 
         {/* Actions */}
         <div className="flex items-center space-x-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* Copy menu */}
-          <CopyMenu
-            onCopy={onCopy}
-            copySuccess={copySuccess}
-            isOpen={showCopyMenu}
-            onToggle={() => setShowCopyMenu(!showCopyMenu)}
-          />
+          {/* Copy button */}
+          <CopyButton onCopy={onCopy} copySuccess={copySuccess} />
 
-          {fileLocation && (
+          {/*
+          fileLocation && (
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -100,7 +93,7 @@ export function DumpContent({
                 />
               </svg>
             </button>
-          )}
+          )*/}
 
           <svg
             className={`w-4 h-4 text-slate-400 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
