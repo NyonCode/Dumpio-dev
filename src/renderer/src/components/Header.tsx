@@ -5,9 +5,24 @@ interface HeaderProps {
   onSearchChange: (query: string) => void
   onClearDumps: () => void
   onExportDumps: () => void
+  totalDumps?: number
+  filteredDumps?: number
+  recentActivity?: number
+  exceptions?: number
+  dataPackets?: number
 }
 
-export function Header({ searchQuery, onSearchChange, onClearDumps, onExportDumps }: HeaderProps) {
+export function Header({
+  searchQuery,
+  onSearchChange,
+  onClearDumps,
+  onExportDumps,
+  totalDumps = 0,
+  filteredDumps = 0,
+  recentActivity = 0,
+  exceptions = 0,
+  dataPackets = 0
+}: HeaderProps) {
   const { theme, setTheme } = useTheme()
 
   const getThemeIcon = () => {
@@ -58,38 +73,14 @@ export function Header({ searchQuery, onSearchChange, onClearDumps, onExportDump
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">
-        {/* Search */}
-        <div className="flex-1 max-w-lg">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search dumps..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
+        {/* Left side - Search and Stats */}
+        <div className="flex items-center space-x-6 flex-1">
+          {/* Search */}
+          <div className="max-w-md flex-1">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg
-                  className="h-4 w-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="h-4 w-4 text-gray-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -98,16 +89,91 @@ export function Header({ searchQuery, onSearchChange, onClearDumps, onExportDump
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                   />
                 </svg>
-              </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Search dumps..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => onSearchChange('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <svg
+                    className="h-4 w-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stats Pills */}
+          <div className="flex items-center space-x-3">
+            {/* Total/Filtered */}
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {filteredDumps === totalDumps ? totalDumps : `${filteredDumps}/${totalDumps}`}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {filteredDumps === 1 ? 'dump' : 'dumps'}
+              </span>
+            </div>
+
+            {/* Exceptions Count */}
+            {exceptions > 0 && (
+              <div className="flex items-center space-x-1 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <span className="text-red-600 dark:text-red-400">🔥</span>
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {exceptions}
+                </span>
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  {exceptions === 1 ? 'error' : 'errors'}
+                </span>
+              </div>
+            )}
+
+            {/* Data Packets Count */}
+            {dataPackets > 0 && (
+              <div className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <span className="text-blue-600 dark:text-blue-400">📊</span>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  {dataPackets}
+                </span>
+                <span className="text-xs text-blue-600 dark:text-blue-400">data</span>
+              </div>
+            )}
+
+            {/* Recent Activity */}
+            {recentActivity > 0 && (
+              <div className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-full">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  {recentActivity}
+                </span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">new</span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Status and Actions */}
-        <div className="flex items-center space-x-4 ml-6">
+        {/* Right side - Actions */}
+        <div className="flex items-center space-x-3">
           {/* Theme Toggle */}
           <button
             onClick={cycleTheme}
@@ -117,10 +183,13 @@ export function Header({ searchQuery, onSearchChange, onClearDumps, onExportDump
             {getThemeIcon()}
           </button>
 
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>
+
           {/* Export Button */}
           <button
             onClick={onExportDumps}
             className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={totalDumps === 0}
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -137,6 +206,7 @@ export function Header({ searchQuery, onSearchChange, onClearDumps, onExportDump
           <button
             onClick={onClearDumps}
             className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={totalDumps === 0}
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
