@@ -1,5 +1,3 @@
-// src/renderer/src/components/dump-viewer/ExceptionDumpItem.tsx
-
 import { useState } from 'react'
 import { Dump, Server } from '../../App'
 import { ExceptionParser, type ParsedException } from '../../utils/exceptionParser'
@@ -109,6 +107,41 @@ const FRAMEWORK_STYLES = {
       </svg>
     ),
     badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+  },
+  python: {
+    gradient: 'from-blue-500 to-yellow-500',
+    icon: '🐍',
+    badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+  },
+  django: {
+    gradient: 'from-green-600 to-green-700',
+    icon: '🎸',
+    badge: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+  },
+  flask: {
+    gradient: 'from-gray-500 to-gray-600',
+    icon: '🧪',
+    badge: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+  },
+  fastapi: {
+    gradient: 'from-teal-500 to-teal-600',
+    icon: '⚡',
+    badge: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400'
+  },
+  go: {
+    gradient: 'from-cyan-500 to-blue-600',
+    icon: '🐹',
+    badge: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400'
+  },
+  gin: {
+    gradient: 'from-blue-600 to-indigo-600',
+    icon: '🍸',
+    badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+  },
+  echo: {
+    gradient: 'from-purple-500 to-purple-600',
+    icon: '📢',
+    badge: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
   }
 }
 

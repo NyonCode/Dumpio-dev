@@ -31,10 +31,14 @@ export interface ExceptionContext {
   environment?: {
     php_version?: string
     node_version?: string
+    python_version?: string
+    go_version?: string
     framework?: string
     framework_version?: string
-    environment?: string // production, development, staging
+    environment?: string
     debug?: boolean
+    goos?: string
+    goarch?: string
   }
   database?: {
     connection?: string
@@ -55,7 +59,22 @@ export interface ExceptionSolution {
 
 export interface ParsedException {
   type: 'exception'
-  framework?: 'laravel' | 'symfony' | 'php' | 'node' | 'react' | 'vue' | 'alpine' | 'js'
+  framework?:
+    | 'laravel'
+    | 'symfony'
+    | 'php'
+    | 'node'
+    | 'react'
+    | 'vue'
+    | 'alpine'
+    | 'js'
+    | 'python'
+    | 'django'
+    | 'flask'
+    | 'fastapi'
+    | 'go'
+    | 'gin'
+    | 'echo'
   error: {
     class: string
     message: string
@@ -297,6 +316,63 @@ export class ExceptionParser {
       return 'php'
     }
 
+    // Check Django specific
+    if (
+      payload.exception?.includes('django.') ||
+      payload.framework_version?.includes('Django') ||
+      payload.context?.view ||
+      payload.traceback?.includes('django/')
+    ) {
+      return 'django'
+    }
+
+    // Check Flask specific
+    if (
+      payload.exception?.includes('flask.') ||
+      payload.exception?.includes('werkzeug.') ||
+      payload.framework_version?.includes('Flask')
+    ) {
+      return 'flask'
+    }
+
+    // Check FastAPI specific
+    if (
+      payload.exception?.includes('fastapi.') ||
+      payload.exception?.includes('pydantic.') ||
+      payload.framework_version?.includes('FastAPI')
+    ) {
+      return 'fastapi'
+    }
+
+    // Check Go frameworks
+    if (payload.exception?.includes('gin.') || payload.framework?.includes('gin')) {
+      return 'gin'
+    }
+
+    if (payload.exception?.includes('echo.') || payload.framework?.includes('echo')) {
+      return 'echo'
+    }
+
+    // Check Python (generic)
+    if (
+      payload.traceback ||
+      payload.exception?.includes('Error') ||
+      payload.exception?.includes('Exception') ||
+      payload.python_version
+    ) {
+      return 'python'
+    }
+
+    // Check Go (generic)
+    if (
+      payload.exception?.includes('panic:') ||
+      payload.exception?.includes('runtime error:') ||
+      payload.stack?.includes('goroutine') ||
+      payload.go_version
+    ) {
+      return 'go'
+    }
+
     return 'js'
   }
 
@@ -483,6 +559,75 @@ export class ExceptionParser {
       const { request, user, session, environment, database, ...custom } = payload.context
       if (Object.keys(custom).length > 0) {
         context.custom = custom
+      }
+    }
+
+    if (framework === 'python' || framework === 'django' || framework === 'flask' || framework === 'fastapi') {
+      // Aktualizujte environment pro Python
+      if (!context.environment) context.environment = {}
+      context.environment = {
+        ...context.environment,
+        python_version: payload.python_version || payload.context?.python_version,
+        framework: framework,
+        framework_version: payload.framework_version || payload.context?.framework_version
+      }
+
+      // Python locals/globals
+      if (payload.locals) {
+        if (!context.custom) context.custom = {}
+        context.custom.locals = payload.locals
+      }
+      if (payload.globals) {
+        if (!context.custom) context.custom = {}
+        context.custom.globals = payload.globals
+      }
+
+      // Django
+      if (framework === 'django' && payload.context?.view) {
+        if (!context.custom) context.custom = {}
+        context.custom.view = payload.context.view
+      }
+
+      // FastAPI
+      if (framework === 'fastapi') {
+        if (payload.path_params || payload.context?.path_params) {
+          if (!context.custom) context.custom = {}
+          context.custom.path_params = payload.path_params || payload.context.path_params
+        }
+        if (payload.query_params || payload.context?.query_params) {
+          if (!context.custom) context.custom = {}
+          context.custom.query_params = payload.query_params || payload.context.query_params
+        }
+      }
+    }
+
+    // Go context
+    if (framework === 'go' || framework === 'gin' || framework === 'echo') {
+      // Aktualizujte environment pro Go
+      if (!context.environment) context.environment = {}
+      context.environment = {
+        ...context.environment,
+        go_version: payload.go_version || payload.context?.go_version,
+        framework: framework,
+        framework_version: payload.framework_version || payload.context?.framework_version,
+        goos: payload.goos || payload.context?.goos,
+        goarch: payload.goarch || payload.context?.goarch
+      }
+
+      // Goroutine info
+      if (payload.goroutine || payload.context?.goroutine) {
+        const gr = payload.goroutine || payload.context.goroutine
+        if (!context.custom) context.custom = {}
+        context.custom.goroutine = {
+          id: gr.id,
+          state: gr.state
+        }
+      }
+
+      // Go variables
+      if (payload.variables) {
+        if (!context.custom) context.custom = {}
+        context.custom.variables = payload.variables
       }
     }
 
