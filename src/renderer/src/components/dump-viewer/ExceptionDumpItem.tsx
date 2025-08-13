@@ -40,7 +40,7 @@ const FRAMEWORK_STYLES = {
     ),
     badge: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
   },
-  'vanilla-php': {
+  php: {
     gradient: 'from-indigo-500 to-indigo-600',
     icon: (
       <svg
@@ -97,7 +97,7 @@ const FRAMEWORK_STYLES = {
     icon: '⛰️',
     badge: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400'
   },
-  'vanilla-js': {
+  js: {
     gradient: 'from-yellow-500 to-yellow-600',
     icon: (
       <svg

@@ -319,7 +319,7 @@ class ExceptionTestClient {
   async sendPHPFatalError() {
     const data = {
       type: 'exception',
-      framework: 'vanilla-php',
+      framework: 'php',
       exception: 'Fatal Error',
       message: 'Uncaught Error: Call to undefined function connectToDatabase()',
       file: '/var/www/html/index.php',
@@ -337,7 +337,7 @@ Stack trace:
           user_agent: 'curl/7.68.0'
         },
         environment: {
-          framework: 'vanilla-php',
+          framework: 'php',
           php_version: '8.1.0',
           sapi: 'apache2handler'
         }

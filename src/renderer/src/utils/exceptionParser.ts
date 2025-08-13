@@ -55,15 +55,7 @@ export interface ExceptionSolution {
 
 export interface ParsedException {
   type: 'exception'
-  framework?:
-    | 'laravel'
-    | 'symfony'
-    | 'vanilla-php'
-    | 'node'
-    | 'react'
-    | 'vue'
-    | 'alpine'
-    | 'vanilla-js'
+  framework?: 'laravel' | 'symfony' | 'php' | 'node' | 'react' | 'vue' | 'alpine' | 'js'
   error: {
     class: string
     message: string
@@ -102,7 +94,7 @@ const FRAMEWORK_PATTERNS = {
     stackFrame: /at\s+(.+?)\s+\((.+?):(\d+)\)/,
     contextKeys: ['request', 'user', 'session', 'profiler']
   },
-  vanillaPHP: {
+  php: {
     exception: /^(Error|Exception|TypeError|ParseError)/,
     stackFrame: /#\d+\s+(.+?)\((\d+)\):\s+(.+)/,
     contextKeys: ['_SERVER', '_SESSION', '_POST', '_GET']
@@ -302,10 +294,10 @@ export class ExceptionParser {
 
     // Default to vanilla based on error type
     if (payload.exception || payload.file?.endsWith('.php')) {
-      return 'vanilla-php'
+      return 'php'
     }
 
-    return 'vanilla-js'
+    return 'js'
   }
 
   private static parseError(payload: any, framework?: string): ParsedException['error'] {
@@ -723,7 +715,7 @@ export function generateExceptionTestData(framework: ParsedException['framework'
         }
       }
     },
-    'vanilla-php': {
+    php: {
       type: 'Error',
       message: 'Call to undefined function myFunction()',
       file: '/var/www/html/index.php',
@@ -762,7 +754,7 @@ export function generateExceptionTestData(framework: ParsedException['framework'
       line: 120,
       alpine: true
     },
-    'vanilla-js': {
+    js: {
       name: 'ReferenceError',
       message: 'myVariable is not defined',
       stack:
@@ -770,5 +762,5 @@ export function generateExceptionTestData(framework: ParsedException['framework'
     }
   }
 
-  return examples[framework] || examples['vanilla-js']
+  return examples[framework] || examples['js']
 }
