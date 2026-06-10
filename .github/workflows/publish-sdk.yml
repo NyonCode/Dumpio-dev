@@ -1,0 +1,151 @@
+# Publish one SDK package to its standalone repository.
+#
+# On a tag like `sdk/node/v0.1.0`, the matching `sdk/<lang>` subtree is split
+# out of this monorepo (history preserved for that folder only) and force-
+# pushed onto the `main` branch of its dedicated read-only mirror repo, then
+# tagged `v<version>` there. Packagist / npm / PyPI are wired to those mirror
+# repos, not this one.
+#
+# Prerequisites (one-time):
+#   1. Create the three target repos (empty) under the org/owner below.
+#   2. Add a repo secret `SDK_SPLIT_TOKEN`: a PAT (classic `repo` scope, or a
+#      fine-grained token with Contents: read/write on the three target repos)
+#      belonging to an account that can push to them. The default GITHUB_TOKEN
+#      cannot push to other repositories, so a PAT is required.
+#
+# Release flow:
+#   git tag sdk/node/v0.1.0 && git push origin sdk/node/v0.1.0
+
+name: Publish SDK
+
+on:
+  push:
+    tags:
+      - 'sdk/node/v*'
+      - 'sdk/php/v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-sdk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  split:
+    name: Split and publish SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history — git subtree needs it)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive SDK target from tag
+        id: target
+        run: |
+          set -euo pipefail
+
+          ref="${GITHUB_REF_NAME}"
+          case "$ref" in
+            sdk/node/v*)
+              name="node"
+              prefix="sdk/node"
+              repo="NyonCode/dumpio-client-node"
+              version="${ref#sdk/node/v}"
+              ;;
+            sdk/php/v*)
+              name="php"
+              prefix="sdk/php"
+              repo="NyonCode/dumpio-client-php"
+              version="${ref#sdk/php/v}"
+              ;;
+            sdk/python/v*)
+              name="python"
+              prefix="sdk/python"
+              repo="NyonCode/dumpio-client-python"
+              version="${ref#sdk/python/v}"
+              ;;
+            *)
+              echo "::error::Unsupported SDK tag '$ref'"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$version" ]; then
+            echo "::error::Could not derive a version from tag '$ref'"
+            exit 1
+          fi
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $name as v$version from $prefix"
+
+      - name: Verify package version matches the tag
+        env:
+          NAME: ${{ steps.target.outputs.name }}
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          case "$NAME" in
+            node)
+              pkg=$(node -p "require('./sdk/node/package.json').version")
+              if [ "$pkg" != "$VERSION" ]; then
+                echo "::error::sdk/node/package.json version ($pkg) != tag ($VERSION)"
+                exit 1
+              fi
+              ;;
+            python)
+              pkg=$(grep -E '^version\s*=' sdk/python/pyproject.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+              if [ "$pkg" != "$VERSION" ]; then
+                echo "::error::sdk/python/pyproject.toml version ($pkg) != tag ($VERSION)"
+                exit 1
+              fi
+              ;;
+            php)
+              # Composer derives the version from the git tag on the target repo,
+              # so there's no version field in composer.json to check.
+              echo "php: version is taken from the git tag — nothing to verify."
+              ;;
+            *)
+              echo "::error::Unsupported SDK '$NAME'"
+              exit 1
+              ;;
+          esac
+
+      - name: Split subtree and push to target repository
+        env:
+          NAME: ${{ steps.target.outputs.name }}
+          TARGET_REPO: ${{ steps.target.outputs.repo }}
+          PREFIX: ${{ steps.target.outputs.prefix }}
+          VERSION: ${{ steps.target.outputs.version }}
+          TOKEN: ${{ secrets.SDK_SPLIT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::Secret SDK_SPLIT_TOKEN is not set — cannot push to $TARGET_REPO"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Produce a commit SHA whose tree is just the package subdirectory.
+          echo "Splitting '$PREFIX'…"
+          split_sha=$(git subtree split --prefix="$PREFIX")
+          echo "Split SHA: $split_sha"
+
+          remote="https://x-access-token:${TOKEN}@github.com/${TARGET_REPO}.git"
+
+          # Mirror onto main (force: the split history is regenerated each run and
+          # the target repos are read-only mirrors, so a non-fast-forward is fine).
+          git push --force "$remote" "${split_sha}:refs/heads/main"
+
+          # Tag the published commit. Force so re-running the same release is idempotent.
+          git push --force "$remote" "${split_sha}:refs/tags/v${VERSION}"
+
+          echo "Published ${NAME} to ${TARGET_REPO} @ v${VERSION}"
