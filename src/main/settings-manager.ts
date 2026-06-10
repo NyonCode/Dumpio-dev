@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { logger } from './logger'
 
 export interface Server {
   id: string
@@ -9,20 +10,30 @@ export interface Server {
   port: number
   color: string
   active: boolean
+  protocol: 'http' | 'tcp'
+}
+
+export interface SecuritySettings {
+  /** Optional shared token; empty string disables auth. */
+  token: string
+  /** Max accepted body size per request/message, in kilobytes. */
+  maxPayloadKb: number
+  /** Max accepted messages per second per client/connection. */
+  rateLimitPerSec: number
 }
 
 export interface Settings {
   servers: Server[]
   theme: 'light' | 'dark' | 'system'
   saveDumpsOnExit: boolean
-  autoSaveDumps: boolean // OPRAVA: Přidáno chybějící pole
+  autoSaveDumps: boolean
   maxDumpsInMemory: number
   autoStartServers: boolean
-  ideIntegration: {
-    enabled: boolean
-    defaultIde: 'vscode' | 'jetbrains' | 'custom'
-    customCommand?: string
-  }
+  viewMode: 'detailed' | 'compact'
+  density: 'comfortable' | 'compact'
+  fontSize: 'small' | 'medium' | 'large'
+  accentColor: string
+  security: SecuritySettings
   filters: {
     showServerColors: boolean
     defaultFlagFilter: string[]
@@ -42,9 +53,14 @@ export class SettingsManager {
       autoSaveDumps: false, // OPRAVA: Přidáno výchozí hodnota
       maxDumpsInMemory: 1000,
       autoStartServers: true,
-      ideIntegration: {
-        enabled: false,
-        defaultIde: 'vscode'
+      viewMode: 'detailed',
+      density: 'comfortable',
+      fontSize: 'medium',
+      accentColor: 'blue',
+      security: {
+        token: '',
+        maxPayloadKb: 1024,
+        rateLimitPerSec: 1000
       },
       filters: {
         showServerColors: true,
@@ -58,9 +74,23 @@ export class SettingsManager {
       const data = await readFile(this.settingsPath, 'utf8')
       const settings = JSON.parse(data)
 
-      // Merge with default settings to ensure all properties exist
-      return { ...this.defaultSettings, ...settings }
-    } catch (error) {
+      // Merge with defaults so newly added fields always exist.
+      const merged: Settings = {
+        ...this.defaultSettings,
+        ...settings,
+        security: { ...this.defaultSettings.security, ...(settings.security ?? {}) },
+        filters: { ...this.defaultSettings.filters, ...(settings.filters ?? {}) }
+      }
+
+      // Migration: servers persisted before the HTTP-first change had no
+      // protocol — they were TCP, so default missing ones to 'tcp' (legacy).
+      merged.servers = (merged.servers ?? []).map((s: Server) => ({
+        ...s,
+        protocol: s.protocol ?? 'tcp'
+      }))
+
+      return merged
+    } catch {
       // If file doesn't exist or is invalid, return default settings
       return { ...this.defaultSettings }
     }
@@ -73,7 +103,7 @@ export class SettingsManager {
 
       await writeFile(this.settingsPath, JSON.stringify(settings, null, 2), 'utf8')
     } catch (error) {
-      console.error('Failed to save settings:', error)
+      logger.error('Failed to save settings:', error)
       throw error
     }
   }

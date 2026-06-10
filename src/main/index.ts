@@ -1,46 +1,91 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { connect } from 'net'
+import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { TCPServer } from './tcp-server'
-import { SettingsManager } from './settings-manager'
+import { SettingsManager, type Server, type Settings } from './settings-manager'
 import { DumpManager } from './dump-manager'
-
-interface Server {
-  id: string
-  name: string
-  host: string
-  port: number
-  color: string
-  active: boolean
-}
-
-interface Dump {
-  id: string
-  serverId: string
-  timestamp: number
-  origin: string
-  payload: any
-  flag?: 'yellow' | 'red' | 'blue' | 'gray' | 'purple' | 'pink' | 'green'
-  channel?: string
-}
+import { IngestManager } from './ingest/ingest-manager'
+import { DEFAULT_LIMITS } from './ingest/normalize'
+import type { IngestServerConfig, NormalizeLimits, SecurityOptions } from './ingest/types'
+import { logger } from './logger'
 
 class MainApplication {
   private mainWindow: BrowserWindow | null = null
-  private tcpServers: Map<string, TCPServer> = new Map()
-  private settingsManager: SettingsManager
-  private dumpManager: DumpManager
+  private readonly settingsManager: SettingsManager
+  private readonly dumpManager: DumpManager
+  private readonly ingestManager: IngestManager
   private autoSaveInterval: NodeJS.Timeout | null = null
 
   constructor() {
     this.settingsManager = new SettingsManager()
     this.dumpManager = new DumpManager()
+    this.ingestManager = new IngestManager(
+      {
+        onDump: (dump) => {
+          this.dumpManager.addDump(dump)
+          this.mainWindow?.webContents.send('dump-received', dump)
+        },
+        onError: (serverId, error) => {
+          this.mainWindow?.webContents.send('server-error', { serverId, error })
+        },
+        onStarted: (serverId) => {
+          this.mainWindow?.webContents.send('server-started', serverId)
+        },
+        onStopped: (serverId) => {
+          this.mainWindow?.webContents.send('server-stopped', serverId)
+        }
+      },
+      () => this.getSecurityOptions(),
+      (): NormalizeLimits => DEFAULT_LIMITS,
+      app.getVersion()
+    )
     this.setupEventHandlers()
   }
 
-  private setupEventHandlers() {
+  /** Build the live security policy from persisted settings. */
+  private async getSecurityOptionsAsync(): Promise<SecurityOptions> {
+    const { security } = await this.settingsManager.getSettings()
+    return {
+      token: security.token,
+      maxPayloadBytes: Math.max(1, security.maxPayloadKb) * 1024,
+      rateLimitPerSec: security.rateLimitPerSec
+    }
+  }
+
+  /** Synchronous snapshot of the security policy (refreshed on settings save). */
+  private securityCache: SecurityOptions = {
+    token: '',
+    maxPayloadBytes: 1024 * 1024,
+    rateLimitPerSec: 1000
+  }
+
+  private getSecurityOptions(): SecurityOptions {
+    return this.securityCache
+  }
+
+  private async refreshSecurityCache(): Promise<void> {
+    this.securityCache = await this.getSecurityOptionsAsync()
+  }
+
+  private toIngestConfig(server: Server): IngestServerConfig {
+    return {
+      id: server.id,
+      name: server.name,
+      host: server.host,
+      port: server.port,
+      protocol: server.protocol
+    }
+  }
+
+  private activeConfigs(servers: Server[]): IngestServerConfig[] {
+    return servers.filter((s) => s.active).map((s) => this.toIngestConfig(s))
+  }
+
+  private setupEventHandlers(): void {
     app.whenReady().then(async () => {
-      electronApp.setAppUserModelId('com.tcpdumpviewer')
+      electronApp.setAppUserModelId('cz.nyoncode.dumpio')
 
       app.on('browser-window-created', (_, window) => {
         optimizer.watchWindowShortcuts(window)
@@ -78,8 +123,7 @@ class MainApplication {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        contextIsolation: true,
-        enableRemoteModule: false
+        contextIsolation: true
       }
     })
 
@@ -87,8 +131,9 @@ class MainApplication {
       this.mainWindow?.show()
     })
 
-    this.mainWindow.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
+    // Only ever hand http(s) links to the OS browser; deny everything else.
+    this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (this.isSafeExternalUrl(url)) shell.openExternal(url)
       return { action: 'deny' }
     })
 
@@ -99,67 +144,76 @@ class MainApplication {
     }
   }
 
-  private async initializeApplication() {
-    console.log('🚀 Initializing TCP Dump Viewer application...')
+  private isSafeExternalUrl(url: string): boolean {
+    try {
+      const { protocol } = new URL(url)
+      return protocol === 'http:' || protocol === 'https:'
+    } catch {
+      return false
+    }
+  }
 
-    // Load settings first
+  /** Known editor "open file" URL schemes, used to gate `open-in-editor`. */
+  private isEditorUrl(url: string): boolean {
+    const allowed = new Set([
+      'vscode:',
+      'vscode-insiders:',
+      'cursor:',
+      'phpstorm:',
+      'webstorm:',
+      'idea:',
+      'subl:',
+      'txmt:',
+      'zed:'
+    ])
+    try {
+      return allowed.has(new URL(url).protocol)
+    } catch {
+      return false
+    }
+  }
+
+  private async initializeApplication(): Promise<void> {
+    logger.info('🚀 Initializing Dumpio...')
+
     const settings = await this.settingsManager.getSettings()
-    console.log('📋 Settings loaded:', {
-      serverCount: settings.servers.length,
-      maxDumpsInMemory: settings.maxDumpsInMemory,
-      autoSaveDumps: settings.autoSaveDumps,
-      saveDumpsOnExit: settings.saveDumpsOnExit
-    })
+    await this.refreshSecurityCache()
 
-    // Load dumps if setting is enabled
     if (settings.saveDumpsOnExit || settings.autoSaveDumps) {
       try {
         await this.dumpManager.loadDumps()
-        console.log('Dumps loaded from previous session')
       } catch (error) {
-        console.error('Failed to load dumps:', error)
+        logger.error('Failed to load dumps:', error)
       }
     }
 
-    // Set max dumps from settings
     this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
-
-    // Setup auto-save if enabled
     this.setupAutoSave(settings.autoSaveDumps)
-
-    // Initialize servers
-    console.log('🌐 Initializing TCP servers...')
     await this.initializeServers()
 
-    console.log('✅ Application initialization complete')
+    logger.info('✅ Application initialization complete')
   }
 
-  private setupAutoSave(enabled: boolean) {
-    // Clear existing interval
+  private setupAutoSave(enabled: boolean): void {
     if (this.autoSaveInterval) {
       clearInterval(this.autoSaveInterval)
       this.autoSaveInterval = null
     }
-
     if (enabled) {
-      console.log('📁 Setting up auto-save (every 5 seconds)')
       this.autoSaveInterval = setInterval(async () => {
         try {
           await this.dumpManager.saveDumps()
-          console.log('Auto-saved dumps')
         } catch (error) {
-          console.error('Auto-save failed:', error)
+          logger.error('Auto-save failed:', error)
         }
-      }, 5000) // Save every 5 seconds
-    } else {
-      console.log('📁 Auto-save disabled')
+      }, 5000)
     }
   }
 
-  private async initializeServers() {
+  private async initializeServers(): Promise<void> {
     const settings = await this.settingsManager.getSettings()
 
-    // Add default server if none exist
+    // First run: create a default HTTP server (HTTP-first).
     if (settings.servers.length === 0) {
       const defaultServer: Server = {
         id: 'default',
@@ -167,327 +221,248 @@ class MainApplication {
         host: 'localhost',
         port: 21234,
         color: 'blue',
-        active: true
+        active: true,
+        protocol: 'http'
       }
       settings.servers.push(defaultServer)
       await this.settingsManager.saveSettings(settings)
-      console.log('Created default server: localhost:21234')
+      logger.info('Created default HTTP server: http://localhost:21234')
     }
 
-    console.log(`Found ${settings.servers.length} configured servers`)
-
-    // Start all active servers
-    for (const server of settings.servers) {
-      if (server.active) {
-        console.log(`Attempting to start server: ${server.name} (${server.host}:${server.port})`)
-        try {
-          await this.startServer(server)
-        } catch (error) {
-          console.error(`Failed to start server ${server.name} during initialization:`, error)
-          // Continue with other servers even if one fails
-        }
-      } else {
-        console.log(`Skipping inactive server: ${server.name}`)
-      }
-    }
-
-    // Log final status
-    console.log(`Active TCP servers: ${this.tcpServers.size}`)
-    for (const [serverId, tcpServer] of this.tcpServers) {
-      const status = tcpServer.getStatus()
-      console.log(`  - ${serverId}: ${status.host}:${status.port} (running: ${status.isRunning})`)
-    }
-  }
-
-  private async startServer(server: Server) {
-    try {
-      // Check if server with same ID is already running
-      if (this.tcpServers.has(server.id)) {
-        console.log(`Server ${server.name} is already running, stopping first...`)
-        await this.stopServer(server.id)
-      }
-
-      // Check if port is already in use by another server
-      const portInUse = Array.from(this.tcpServers.values()).find((tcpServer) => {
-        const status = tcpServer.getStatus()
-        return status.host === server.host && status.port === server.port && status.isRunning
-      })
-
-      if (portInUse) {
-        throw new Error(`Port ${server.port} is already in use by another server on ${server.host}`)
-      }
-
-      const tcpServer = new TCPServer(server.host, server.port)
-
-      tcpServer.on('dump', (data) => {
-        const dump: Dump = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          serverId: server.id,
-          timestamp: Date.now(),
-          origin: data.origin || 'unknown',
-          payload: data,
-          flag: data.flag || 'gray',
-          channel: data.channel || 'default'
-        }
-
-        this.dumpManager.addDump(dump)
-        this.mainWindow?.webContents.send('dump-received', dump)
-      })
-
-      tcpServer.on('error', (error) => {
-        console.error(`Server ${server.name} error:`, error)
-        // Remove failed server from map
-        this.tcpServers.delete(server.id)
-        this.mainWindow?.webContents.send('server-error', {
-          serverId: server.id,
-          error: error.message
-        })
-      })
-
-      await tcpServer.start()
-      this.tcpServers.set(server.id, tcpServer)
-
-      console.log(`TCP Server "${server.name}" started on ${server.host}:${server.port}`)
-      this.mainWindow?.webContents.send('server-started', server)
-    } catch (error) {
-      console.error(`Failed to start server ${server.name}:`, error)
-      // Make sure server is not in the map if it failed to start
-      this.tcpServers.delete(server.id)
-      this.mainWindow?.webContents.send('server-error', {
-        serverId: server.id,
-        error: (error as Error).message
-      })
-      throw error
-    }
-  }
-
-  private async stopServer(serverId: string) {
-    const tcpServer = this.tcpServers.get(serverId)
-    if (tcpServer) {
+    for (const cfg of this.activeConfigs(settings.servers)) {
       try {
-        await tcpServer.stop()
-        this.tcpServers.delete(serverId)
-        console.log(`Server ${serverId} stopped successfully`)
-        this.mainWindow?.webContents.send('server-stopped', serverId)
+        await this.ingestManager.startServer(cfg)
       } catch (error) {
-        console.error(`Error stopping server ${serverId}:`, error)
-        // Still remove from map even if stop failed
-        this.tcpServers.delete(serverId)
-        this.mainWindow?.webContents.send('server-error', {
-          serverId,
-          error: `Failed to stop server: ${error.message}`
-        })
+        logger.error(`Failed to start "${cfg.name}" during init:`, error)
       }
     }
   }
 
-  private setupIPCHandlers() {
-    // Settings handlers
+  private setupIPCHandlers(): void {
+    // Settings
     ipcMain.handle('get-settings', () => this.settingsManager.getSettings())
-    ipcMain.handle('save-settings', (_, settings) => this.settingsManager.saveSettings(settings))
+    ipcMain.handle('save-settings', (_, settings: Settings) =>
+      this.settingsManager.saveSettings(settings)
+    )
 
     // Server management
     ipcMain.handle('start-server', async (_, server: Server) => {
-      console.log(`IPC: Starting server ${server.name}`)
-      await this.startServer(server)
+      await this.ingestManager.startServer(this.toIngestConfig(server))
     })
-
     ipcMain.handle('stop-server', async (_, serverId: string) => {
-      console.log(`IPC: Stopping server ${serverId}`)
-      await this.stopServer(serverId)
+      await this.ingestManager.stopServer(serverId)
     })
-
     ipcMain.handle('restart-server', async (_, server: Server) => {
-      console.log(`IPC: Restarting server ${server.name}`)
-      await this.stopServer(server.id)
-      await this.startServer(server)
+      await this.ingestManager.stopServer(server.id)
+      await this.ingestManager.startServer(this.toIngestConfig(server))
     })
+    ipcMain.handle('get-server-status', () => this.ingestManager.getStatuses())
 
-    ipcMain.handle('get-server-status', () => {
-      const serverStatus = new Map()
-      for (const [serverId, tcpServer] of this.tcpServers) {
-        serverStatus.set(serverId, tcpServer.getStatus())
-      }
-      return Object.fromEntries(serverStatus)
-    })
-
-    // Enhanced settings handler that manages server lifecycle
-    ipcMain.handle('save-settings-and-sync-servers', async (_, settings) => {
-      const currentSettings = await this.settingsManager.getSettings()
+    // Save settings + reconcile transports
+    ipcMain.handle('save-settings-and-sync-servers', async (_, settings: Settings) => {
+      const current = await this.settingsManager.getSettings()
       await this.settingsManager.saveSettings(settings)
+      await this.refreshSecurityCache()
 
-      // Update max dumps if changed
-      if (currentSettings.maxDumpsInMemory !== settings.maxDumpsInMemory) {
+      if (current.maxDumpsInMemory !== settings.maxDumpsInMemory) {
         this.dumpManager.setMaxDumps(settings.maxDumpsInMemory)
       }
-
-      // Update auto-save if changed
-      if (currentSettings.autoSaveDumps !== settings.autoSaveDumps) {
+      if (current.autoSaveDumps !== settings.autoSaveDumps) {
         this.setupAutoSave(settings.autoSaveDumps)
       }
-
-      // Sync server states based on new settings
-      await this.syncServersWithSettings(currentSettings.servers, settings.servers)
+      await this.ingestManager.sync(
+        this.activeConfigs(current.servers),
+        this.activeConfigs(settings.servers)
+      )
     })
 
-    // Dump management
+    // Dumps
     ipcMain.handle('get-dumps', () => this.dumpManager.getDumps())
-
     ipcMain.handle('clear-dumps', async () => {
       this.dumpManager.clearDumps()
-
-      // Also clear from disk if dumps are being saved
       try {
         const settings = await this.settingsManager.getSettings()
         if (settings.saveDumpsOnExit || settings.autoSaveDumps) {
           await this.dumpManager.clearDumpsFromDisk()
         }
       } catch (error) {
-        console.error('Failed to clear dumps from disk:', error)
-        // Continue anyway - we cleared memory dumps successfully
+        logger.error('Failed to clear dumps from disk:', error)
       }
-
       this.mainWindow?.webContents.send('dumps-cleared')
     })
-
     ipcMain.handle('export-dumps', async () => {
       const result = await dialog.showSaveDialog(this.mainWindow!, {
         defaultPath: `dumps-${new Date().toISOString().split('T')[0]}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
-
       if (!result.canceled && result.filePath) {
         return this.dumpManager.exportDumps(result.filePath)
       }
       return false
     })
-
-    // Force save dumps
     ipcMain.handle('force-save-dumps', async () => {
       try {
         await this.dumpManager.saveDumps()
-        console.log('Force save completed')
         return true
       } catch (error) {
-        console.error('Force save failed:', error)
+        logger.error('Force save failed:', error)
         return false
       }
     })
+    ipcMain.handle('get-dump-stats', () => this.dumpManager.getStats())
 
-    // Get dump statistics
-    ipcMain.handle('get-dump-stats', () => {
-      return this.dumpManager.getStats()
+    // Open external links safely (http/https only).
+    ipcMain.handle('open-external', async (_, url: string) => {
+      if (this.isSafeExternalUrl(url)) {
+        await shell.openExternal(url)
+        return true
+      }
+      logger.warn(`Blocked attempt to open non-http(s) URL: ${url}`)
+      return false
     })
 
-    // IDE integration (planned)
-    ipcMain.handle('open-in-ide', async (_, { file, line, ide }) => {
-      // TODO: Implement IDE integration
-      console.log(`Opening ${file}:${line} in ${ide}`)
+    // Open a file:line in the user's editor via its custom URL scheme. Restricted
+    // to a known allowlist of editor protocols so the renderer can't smuggle
+    // arbitrary scheme handlers through this channel.
+    ipcMain.handle('open-in-editor', async (_, url: string) => {
+      if (this.isEditorUrl(url)) {
+        await shell.openExternal(url)
+        return true
+      }
+      logger.warn(`Blocked attempt to open non-editor URL: ${url}`)
+      return false
     })
 
-    // Theme management
+    // Always-on-top (pin window above other windows)
+    ipcMain.handle('set-always-on-top', (_, flag: boolean) => {
+      this.mainWindow?.setAlwaysOnTop(!!flag)
+      return this.mainWindow?.isAlwaysOnTop() ?? false
+    })
+    ipcMain.handle('get-always-on-top', () => this.mainWindow?.isAlwaysOnTop() ?? false)
+
+    // Theme
     ipcMain.handle('get-theme', () => this.settingsManager.getTheme())
-    ipcMain.handle('set-theme', (_, theme) => this.settingsManager.setTheme(theme))
+    ipcMain.handle('set-theme', (_, theme: 'light' | 'dark' | 'system') =>
+      this.settingsManager.setTheme(theme)
+    )
+
+    // Data folder
+    ipcMain.handle('open-path', async () => {
+      const err = await shell.openPath(app.getPath('userData'))
+      if (err) logger.warn(`Failed to open data folder: ${err}`)
+      return err === ''
+    })
+
+    // Settings export / import
+    ipcMain.handle('export-settings', async () => {
+      const result = await dialog.showSaveDialog(this.mainWindow!, {
+        defaultPath: `dumpio-settings-${new Date().toISOString().split('T')[0]}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (result.canceled || !result.filePath) return false
+      const settings = await this.settingsManager.getSettings()
+      await writeFile(result.filePath, JSON.stringify(settings, null, 2), 'utf8')
+      return true
+    })
+    ipcMain.handle('import-settings', async () => {
+      const result = await dialog.showOpenDialog(this.mainWindow!, {
+        properties: ['openFile'],
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      let imported: Partial<Settings>
+      try {
+        imported = JSON.parse(await readFile(result.filePaths[0], 'utf8'))
+      } catch {
+        throw new Error('Selected file is not valid JSON')
+      }
+      if (typeof imported !== 'object' || imported === null || !Array.isArray(imported.servers)) {
+        throw new Error('File does not look like a Dumpio settings export')
+      }
+      const current = await this.settingsManager.getSettings()
+      await this.settingsManager.saveSettings(imported as Settings)
+      const merged = await this.settingsManager.getSettings()
+      await this.refreshSecurityCache()
+      this.dumpManager.setMaxDumps(merged.maxDumpsInMemory)
+      this.setupAutoSave(merged.autoSaveDumps)
+      await this.ingestManager.sync(
+        this.activeConfigs(current.servers),
+        this.activeConfigs(merged.servers)
+      )
+      return merged
+    })
+
+    // Send a sample dump to a configured server (Settings → "Send test dump")
+    ipcMain.handle('send-test-dump', async (_, serverId: string) => {
+      const settings = await this.settingsManager.getSettings()
+      const server = settings.servers.find((s) => s.id === serverId)
+      if (!server) throw new Error('Server not found')
+      return this.sendTestDump(server, settings.security.token)
+    })
   }
 
-  private async handleBeforeQuit() {
+  /** Connect to a configured server as a client and deliver one sample dump. */
+  private async sendTestDump(server: Server, token: string): Promise<boolean> {
+    const payload: Record<string, unknown> = {
+      type: 'log',
+      level: 'info',
+      message: 'Dumpio test dump',
+      flag: 'green',
+      channel: 'test',
+      context: { source: 'Settings → Send test dump', at: new Date().toISOString() }
+    }
+
+    // The dump targets our own server; 0.0.0.0 isn't a connectable address, so
+    // reach a network-exposed server over loopback for the self-test.
+    const targetHost = server.host === '0.0.0.0' ? '127.0.0.1' : server.host
+
+    if (server.protocol === 'http') {
+      const res = await fetch(`http://${targetHost}:${server.port}/dumps`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error(`Server responded with ${res.status}`)
+      return true
+    }
+
+    if (token) payload.token = token
+    await new Promise<void>((resolve, reject) => {
+      const socket = connect(server.port, targetHost, () => {
+        socket.write(JSON.stringify(payload))
+        socket.end()
+      })
+      socket.setTimeout(3000)
+      socket.on('timeout', () => socket.destroy(new Error('Connection timed out')))
+      socket.on('error', reject)
+      socket.on('close', () => resolve())
+    })
+    return true
+  }
+
+  private async handleBeforeQuit(): Promise<void> {
     try {
       const settings = await this.settingsManager.getSettings()
-
       if (settings.saveDumpsOnExit) {
-        console.log('Saving dumps before quit...')
         await this.dumpManager.saveDumps()
       }
     } catch (error) {
-      console.error('Failed to save dumps on quit:', error)
+      logger.error('Failed to save dumps on quit:', error)
     }
   }
 
-  private async cleanup() {
-    console.log('Cleaning up TCP servers...')
-
-    // Clear auto-save interval
+  private async cleanup(): Promise<void> {
     if (this.autoSaveInterval) {
       clearInterval(this.autoSaveInterval)
       this.autoSaveInterval = null
     }
-
-    // Stop all TCP servers gracefully
-    const stopPromises = Array.from(this.tcpServers.entries()).map(
-      async ([serverId, tcpServer]) => {
-        try {
-          console.log(`Stopping server ${serverId}...`)
-          await tcpServer.stop()
-        } catch (error) {
-          console.error(`Error stopping server ${serverId}:`, error)
-        }
-      }
-    )
-
-    // Wait for all servers to stop, but don't wait forever
-    try {
-      await Promise.race([
-        Promise.all(stopPromises),
-        new Promise((resolve) => setTimeout(resolve, 5000)) // 5 second timeout
-      ])
-    } catch (error) {
-      console.error('Error during cleanup:', error)
-    }
-
-    this.tcpServers.clear()
-    console.log('Cleanup completed')
-  }
-
-  private async syncServersWithSettings(oldServers: Server[], newServers: Server[]) {
-    // Create maps for easier comparison
-    const oldServersMap = new Map(oldServers.map((s) => [s.id, s]))
-    const newServersMap = new Map(newServers.map((s) => [s.id, s]))
-
-    // Stop servers that are no longer active or have been removed
-    for (const [serverId, oldServer] of oldServersMap) {
-      const newServer = newServersMap.get(serverId)
-
-      if (!newServer || !newServer.active) {
-        // Server was removed or deactivated
-        if (this.tcpServers.has(serverId)) {
-          console.log(`Stopping server: ${oldServer.name}`)
-          await this.stopServer(serverId)
-        }
-      } else if (this.serverConfigChanged(oldServer, newServer)) {
-        // Server configuration changed (host, port, etc.)
-        if (this.tcpServers.has(serverId)) {
-          console.log(`Restarting server due to config change: ${newServer.name}`)
-          await this.stopServer(serverId)
-          // Add a small delay to ensure port is released
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          try {
-            await this.startServer(newServer)
-          } catch (error) {
-            console.error(`Failed to restart server ${newServer.name}:`, error)
-          }
-        }
-      }
-    }
-
-    // Start new servers or servers that became active
-    for (const [serverId, newServer] of newServersMap) {
-      if (newServer.active && !this.tcpServers.has(serverId)) {
-        console.log(`Starting new/activated server: ${newServer.name}`)
-        try {
-          await this.startServer(newServer)
-        } catch (error) {
-          console.error(`Failed to start server ${newServer.name}:`, error)
-        }
-      }
-    }
-  }
-
-  private serverConfigChanged(oldServer: Server, newServer: Server): boolean {
-    return (
-      oldServer.host !== newServer.host ||
-      oldServer.port !== newServer.port ||
-      oldServer.name !== newServer.name
-    )
+    await Promise.race([
+      this.ingestManager.stopAll(),
+      new Promise((resolve) => setTimeout(resolve, 5000))
+    ])
   }
 }
 

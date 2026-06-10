@@ -59,11 +59,13 @@ Download the latest release for your platform:
 ### 2. Send Data
 
 #### Simple Data Dump
+
 ```bash
 echo '{"message": "User logged in", "user_id": 123, "flag": "green"}' | nc localhost 21234
 ```
 
 #### Exception Data
+
 ```bash
 echo '{
   "type": "exception",
@@ -76,6 +78,7 @@ echo '{
 ```
 
 #### SQL Query
+
 ```bash
 echo '{
   "type": "query",
@@ -88,6 +91,7 @@ echo '{
 ### 3. View Real-time Data
 
 Data appears instantly in the Dumpio interface with:
+
 - Color-coded flags
 - Type detection (SQL, Exception, HTTP, Log)
 - Expandable JSON viewer
@@ -96,6 +100,7 @@ Data appears instantly in the Dumpio interface with:
 ## 📋 Data Formats
 
 ### Basic Dump
+
 ```json
 {
   "message": "User action performed",
@@ -111,6 +116,7 @@ Data appears instantly in the Dumpio interface with:
 ```
 
 ### Exception Format
+
 ```json
 {
   "type": "exception",
@@ -127,6 +133,7 @@ Data appears instantly in the Dumpio interface with:
 ```
 
 ### SQL Query Format
+
 ```json
 {
   "type": "query",
@@ -140,28 +147,32 @@ Data appears instantly in the Dumpio interface with:
 ## 🎨 Features Overview
 
 ### Exception Analysis
+
 - **Smart Stack Trace Parsing** for 10+ frameworks
 - **Automatic Solution Suggestions** with confidence ratings
 - **Code Context Display** with highlighted error lines
 - **Framework-Specific Error Handling**
 
 ### Data Visualization
+
 - **Professional JSON Viewer** with syntax highlighting
 - **Type Detection** (SQL, HTTP, Exceptions, Logs)
 - **Expandable Objects** with smart formatting
 - **Performance Metrics** (query time, memory usage)
 
 ### Filtering & Search
+
 - **Server-based Filtering** - View specific servers
 - **Flag-based Filtering** - Filter by color categories
 - **Text Search** - Search within payload data
 - **Real-time Updates** - Live filtering as data arrives
 
 ### Flag System
+
 Organize your dumps with color-coded flags:
 
 - 🔴 **Red**: Errors, exceptions, critical issues
-- 🟡 **Yellow**: Warnings, deprecated features  
+- 🟡 **Yellow**: Warnings, deprecated features
 - 🔵 **Blue**: Information, general data
 - 🟢 **Green**: Success operations
 - 🟣 **Purple**: Database queries
@@ -171,6 +182,7 @@ Organize your dumps with color-coded flags:
 ## ⚙️ Configuration
 
 ### Server Settings
+
 ```typescript
 {
   "id": "dev-server",
@@ -183,6 +195,7 @@ Organize your dumps with color-coded flags:
 ```
 
 ### Application Settings
+
 ```typescript
 {
   "theme": "dark",                    // light, dark, system
@@ -197,6 +210,7 @@ Organize your dumps with color-coded flags:
 ## 🔧 Framework Integration
 
 ### Laravel
+
 ```php
 // Add to your application
 collect(['user_id' => 123, 'action' => 'login'])
@@ -211,26 +225,30 @@ collect(['user_id' => 123, 'action' => 'login'])
 ```
 
 ### Node.js
+
 ```javascript
-const net = require('net');
+const net = require('net')
 
 function sendDump(data) {
-  const client = new net.Socket();
+  const client = new net.Socket()
   client.connect(21234, 'localhost', () => {
-    client.write(JSON.stringify({
-      ...data,
-      timestamp: Date.now(),
-      flag: 'blue'
-    }));
-    client.destroy();
-  });
+    client.write(
+      JSON.stringify({
+        ...data,
+        timestamp: Date.now(),
+        flag: 'blue'
+      })
+    )
+    client.destroy()
+  })
 }
 
 // Usage
-sendDump({ message: 'User action', user_id: 123 });
+sendDump({ message: 'User action', user_id: 123 })
 ```
 
 ### Python
+
 ```python
 import socket
 import json
@@ -239,13 +257,13 @@ import time
 def send_dump(data):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(('localhost', 21234))
-    
+
     payload = {
         **data,
         'timestamp': int(time.time() * 1000),
         'flag': 'blue'
     }
-    
+
     sock.send(json.dumps(payload).encode())
     sock.close()
 
@@ -254,6 +272,7 @@ send_dump({'message': 'User action', 'user_id': 123})
 ```
 
 ### Go
+
 ```go
 package main
 
@@ -269,10 +288,10 @@ func SendDump(data map[string]interface{}) error {
         return err
     }
     defer conn.Close()
-    
+
     data["timestamp"] = time.Now().UnixMilli()
     data["flag"] = "blue"
-    
+
     jsonData, _ := json.Marshal(data)
     _, err = conn.Write(jsonData)
     return err
@@ -282,17 +301,19 @@ func SendDump(data map[string]interface{}) error {
 ## 🔧 Development
 
 ### Build Commands
+
 ```bash
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run build:win    # Build for Windows
-npm run build:mac    # Build for macOS  
+npm run build:mac    # Build for macOS
 npm run build:linux  # Build for Linux
 npm run lint         # Run ESLint
 npm run format       # Format with Prettier
 ```
 
 ### Project Structure
+
 ```
 src/
 ├── main/                    # Electron main process
@@ -312,6 +333,7 @@ src/
 ```
 
 ### Tech Stack
+
 - **Electron** - Cross-platform desktop framework
 - **React 19** - UI framework with modern hooks
 - **TypeScript** - Type safety and better DX
@@ -324,30 +346,38 @@ src/
 ### Common Issues
 
 **Port Already in Use**
+
 ```bash
 Error: Port 21234 is already in use
 ```
-*Solution: Change port in settings or stop conflicting service*
+
+_Solution: Change port in settings or stop conflicting service_
 
 **JSON Parse Errors**
+
 ```bash
 Failed to parse JSON: Unexpected token
 ```
-*Solution: Ensure valid JSON format in your applications*
+
+_Solution: Ensure valid JSON format in your applications_
 
 **Memory Issues**
+
 ```bash
 Application becoming slow
 ```
-*Solution: Reduce maxDumpsInMemory or enable auto-save*
+
+_Solution: Reduce maxDumpsInMemory or enable auto-save_
 
 ### Debug Mode
+
 ```bash
 # Enable debug logging
 NODE_ENV=development npm run dev
 ```
 
 ### Test Data
+
 ```bash
 # Send test dump
 echo '{"message": "Test", "flag": "blue"}' | nc localhost 21234
@@ -355,7 +385,7 @@ echo '{"message": "Test", "flag": "blue"}' | nc localhost 21234
 # Send test exception
 echo '{
   "type": "exception",
-  "exception": "Error", 
+  "exception": "Error",
   "message": "Test error",
   "file": "test.js",
   "line": 10

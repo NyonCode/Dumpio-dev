@@ -1,7 +1,7 @@
-// test-exception-client.js
-// Run this file with: node test-exception-client.js
+// test-exception-client.js — manual client for framework exceptions.
+// Run: node tests/test-exception-client.js   (HTTP by default; DUMPIO_PROTOCOL=tcp for legacy)
 
-const net = require('net')
+const { sendDump, PROTOCOL } = require('./send')
 
 class ExceptionTestClient {
   constructor(host = 'localhost', port = 21234) {
@@ -9,27 +9,16 @@ class ExceptionTestClient {
     this.port = port
   }
 
-  sendData(data) {
-    return new Promise((resolve, reject) => {
-      const client = new net.Socket()
-
-      client.connect(this.port, this.host, () => {
-        const message = JSON.stringify(data) + '\n'
-        client.write(message)
-        console.log(`✅ Sent ${data.framework || 'unknown'} exception to ${this.host}:${this.port}`)
-        client.end()
-        resolve()
-      })
-
-      client.on('error', (err) => {
-        console.error(`❌ Failed to connect: ${err.message}`)
-        reject(err)
-      })
-
-      client.on('close', () => {
-        resolve()
-      })
-    })
+  async sendData(data) {
+    try {
+      await sendDump(data, { host: this.host, port: this.port })
+      console.log(
+        `✅ Sent ${data.framework || 'unknown'} exception to ${this.host}:${this.port} (${PROTOCOL})`
+      )
+    } catch (err) {
+      console.error(`❌ Failed to send: ${err.message}`)
+      throw err
+    }
   }
 
   // Laravel Exception
@@ -371,7 +360,7 @@ Stack trace:
 
   // Send all test exceptions
   async sendAllExceptions() {
-    console.log('🚀 Sending test exceptions to DumpeX...\n')
+    console.log('🚀 Sending test exceptions to Dumpio...\n')
 
     const tests = [
       { name: 'Laravel QueryException', fn: () => this.sendLaravelException() },
@@ -395,7 +384,7 @@ Stack trace:
 
     console.log('\n✨ All test data sent!')
     console.log(
-      'Check your DumpeX application to see the exceptions with their stack traces and solutions.'
+      'Check your Dumpio application to see the exceptions with their stack traces and solutions.'
     )
   }
 }
@@ -405,7 +394,7 @@ async function main() {
   const client = new ExceptionTestClient('localhost', 21234)
 
   console.log('═══════════════════════════════════════════')
-  console.log('     DumpeX Exception Test Client')
+  console.log('     Dumpio Exception Test Client')
   console.log('═══════════════════════════════════════════\n')
 
   console.log('Options:')

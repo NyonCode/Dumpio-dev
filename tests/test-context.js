@@ -1,6 +1,7 @@
-// Vytvořte nový soubor: test-context.js
+// test-context.js — manual client that sends rich-context exceptions.
+// Run: node tests/test-context.js   (HTTP by default; DUMPIO_PROTOCOL=tcp for legacy)
 
-const net = require('net')
+const { sendDump, PROTOCOL } = require('./send')
 
 class ContextTestClient {
   constructor(host = 'localhost', port = 21234) {
@@ -8,17 +9,9 @@ class ContextTestClient {
     this.port = port
   }
 
-  sendData(data) {
-    return new Promise((resolve, reject) => {
-      const client = new net.Socket()
-      client.connect(this.port, this.host, () => {
-        client.write(JSON.stringify(data) + '\n')
-        console.log(`✅ Sent ${data.framework} with context`)
-        client.end()
-        resolve()
-      })
-      client.on('error', reject)
-    })
+  async sendData(data) {
+    await sendDump(data, { host: this.host, port: this.port })
+    console.log(`✅ Sent ${data.framework} with context (${PROTOCOL})`)
   }
 
   // Test Python Django s kompletním kontextem
@@ -37,7 +30,7 @@ class ContextTestClient {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          'Accept': 'text/html,application/xhtml+xml'
+          Accept: 'text/html,application/xhtml+xml'
         },
         ip: '192.168.1.100'
       },
@@ -96,7 +89,7 @@ class ContextTestClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token123'
+          Authorization: 'Bearer token123'
         },
         body: {
           name: 'John Doe',
@@ -120,9 +113,9 @@ class ContextTestClient {
 
       // GO VARIABLES
       variables: {
-        'user': 'nil (*User)',
-        'db': '*gorm.DB',
-        'ctx': 'gin.Context'
+        user: 'nil (*User)',
+        db: '*gorm.DB',
+        ctx: 'gin.Context'
       },
 
       timestamp: Date.now(),
@@ -149,7 +142,7 @@ class ContextTestClient {
         },
         body: {
           name: 'John',
-          age: -5  // invalid
+          age: -5 // invalid
         }
       },
 
@@ -158,7 +151,7 @@ class ContextTestClient {
       framework_version: '0.104.0',
       path_params: {},
       query_params: {
-        'include_inactive': 'false'
+        include_inactive: 'false'
       },
 
       timestamp: Date.now(),
@@ -171,17 +164,17 @@ class ContextTestClient {
 
     console.log('🐍 Testing Python Django context...')
     await this.testPythonContext()
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     console.log('🐹 Testing Go Gin context...')
     await this.testGoContext()
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     console.log('⚡ Testing FastAPI context...')
     await this.testFastAPIContext()
 
     console.log('\n✨ All context tests sent!')
-    console.log('👀 Check your DumpeX app - měli byste vidět bohatý context v každé chybě!')
+    console.log('👀 Check your Dumpio app - měli byste vidět bohatý context v každé chybě!')
   }
 }
 

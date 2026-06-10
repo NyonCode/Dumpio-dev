@@ -1,43 +1,56 @@
-appId: com.electron.app
-productName: dumpex
+# RC1 release policy (intentional):
+#   - Code signing: OFF  (mac.identity: null, win unsigned) — no certificates yet.
+#   - Notarization:  OFF (mac.notarize: false).
+#   - Auto-update:   OFF (no `publish` block, no electron-updater dependency).
+# To enable signing later: set CSC_LINK / CSC_KEY_PASSWORD (and WIN_CSC_*) env
+# vars, remove `mac.identity: null`, set `mac.notarize: true` with an Apple API
+# key, and add a `publish` provider for auto-update.
+appId: cz.nyoncode.dumpio
+productName: Dumpio
 directories:
   buildResources: build
+  output: release
 files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!*.md'
 asarUnpack:
   - resources/**
 win:
-  executableName: dumpex
+  executableName: Dumpio
+  target: nsis
+  icon: resources/icon.png
 nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  category: public.app-category.developer-tools
+  icon: resources/icon.png
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  # Skip code signing for RC1 (no Developer ID certificate). This produces an
+  # unsigned, un-notarized build for local/manual distribution.
+  identity: null
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
 linux:
   target:
     - AppImage
-    - snap
-    - deb
-  maintainer: electronjs.org
-  category: Utility
+  category: Development
+  icon: resources/icon.png
+  maintainer: nyoncode.cz
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates

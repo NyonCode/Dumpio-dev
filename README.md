@@ -1,6 +1,41 @@
-# dumpex
+# Dumpio
 
-An Electron application with React and TypeScript
+Real-time TCP/HTTP receiver and viewer for JSON debug dumps (Laravel, Node, Python, Go, …).
+
+## Sending dumps
+
+Dumpio listens locally (loopback only by default). Each configured server is either **HTTP** (recommended) or **TCP** (legacy).
+
+### HTTP (recommended)
+
+```bash
+# single dump
+curl -X POST http://127.0.0.1:21234/dumps \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"hello","flag":"green"}'
+
+# batch
+curl -X POST http://127.0.0.1:21234/dumps \
+  -H 'Content-Type: application/json' \
+  -d '[{"message":"a"},{"message":"b"}]'
+
+# health check
+curl http://127.0.0.1:21234/health
+```
+
+If an access token is configured (Settings → Security), include it:
+`-H 'Authorization: Bearer <token>'` (or `-H 'X-Dumpio-Token: <token>'`).
+
+### TCP (legacy)
+
+```bash
+echo '{"message":"hi","flag":"green"}' | nc localhost 21234
+```
+
+### Dump fields
+
+`message`/`title`, `flag` (`red|yellow|blue|gray|purple|pink|green`), `channel`, plus any
+custom JSON payload. Exceptions/stack traces are detected and rendered specially.
 
 ## Recommended IDE Setup
 

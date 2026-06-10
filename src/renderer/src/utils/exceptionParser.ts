@@ -1,3 +1,11 @@
+/*
+ * This parser inspects exception payloads whose shape varies wildly across
+ * frameworks (Laravel, Symfony, Node, Python, Go, …). Modelling every possible
+ * incoming shape with strict types would add noise without real safety, so we
+ * deliberately allow `any` for the heuristic payload probing in this file only.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface StackFrame {
   file: string
   line: number
@@ -5,7 +13,7 @@ export interface StackFrame {
   function?: string
   class?: string
   type?: string // -> or ::
-  args?: any[]
+  args?: unknown[]
   code?: string[]
   preview?: string
 }
@@ -15,7 +23,7 @@ export interface ExceptionContext {
     url?: string
     method?: string
     headers?: Record<string, string>
-    body?: any
+    body?: unknown
     query?: Record<string, string>
     params?: Record<string, string>
     ip?: string
@@ -27,7 +35,7 @@ export interface ExceptionContext {
     name?: string
     roles?: string[]
   }
-  session?: Record<string, any>
+  session?: Record<string, unknown>
   environment?: {
     php_version?: string
     node_version?: string
@@ -43,10 +51,10 @@ export interface ExceptionContext {
   database?: {
     connection?: string
     query?: string
-    bindings?: any[]
+    bindings?: unknown[]
     time?: number
   }
-  custom?: Record<string, any>
+  custom?: Record<string, unknown>
 }
 
 export interface ExceptionSolution {
@@ -99,40 +107,6 @@ export interface ParsedException {
   tags?: string[]
   timestamp: number
   flag?: string
-}
-
-// Pattern matchers for different frameworks
-const FRAMEWORK_PATTERNS = {
-  laravel: {
-    exception: /^(Illuminate\\|App\\)/,
-    stackFrame: /at\s+(.+?)\s+in\s+(.+?):(\d+)/,
-    contextKeys: ['request', 'user', 'session', 'view', 'queries']
-  },
-  symfony: {
-    exception: /^(Symfony\\|App\\)/,
-    stackFrame: /at\s+(.+?)\s+\((.+?):(\d+)\)/,
-    contextKeys: ['request', 'user', 'session', 'profiler']
-  },
-  php: {
-    exception: /^(Error|Exception|TypeError|ParseError)/,
-    stackFrame: /#\d+\s+(.+?)\((\d+)\):\s+(.+)/,
-    contextKeys: ['_SERVER', '_SESSION', '_POST', '_GET']
-  },
-  node: {
-    exception: /^(Error|TypeError|ReferenceError|SyntaxError)/,
-    stackFrame: /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/,
-    contextKeys: ['request', 'process', 'environment']
-  },
-  react: {
-    exception: /^(Error|TypeError|ReferenceError|Invariant Violation)/,
-    stackFrame: /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/,
-    contextKeys: ['props', 'state', 'component', 'route']
-  },
-  vue: {
-    exception: /^(Error|TypeError|Vue warn)/,
-    stackFrame: /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/,
-    contextKeys: ['component', 'props', 'data', 'route']
-  }
 }
 
 // Solution database for common errors
@@ -232,8 +206,32 @@ const SOLUTION_DATABASE: Record<string, ExceptionSolution[]> = {
   ]
 }
 
+// Module-level cache so the (relatively expensive) parse runs once per dump.
+// Keyed by dump.id; the list does cheap classification while the detail panel
+// parses lazily and reuses the cached result. Bounded to avoid unbounded growth.
+const PARSE_CACHE_LIMIT = 5000
+const parseCache = new Map<string, ParsedException | null>()
+
 export class ExceptionParser {
-  static parse(payload: any): ParsedException | null {
+  /**
+   * Parse a dump's payload once and cache it by dump id. Subsequent calls for
+   * the same id return the memoized result (including a cached `null` for
+   * non-exception payloads).
+   */
+  static parseCached(id: string, payload: unknown): ParsedException | null {
+    const cached = parseCache.get(id)
+    if (cached !== undefined) return cached
+
+    const result = this.parse(payload)
+    if (parseCache.size >= PARSE_CACHE_LIMIT) {
+      const oldestKey = parseCache.keys().next().value
+      if (oldestKey !== undefined) parseCache.delete(oldestKey)
+    }
+    parseCache.set(id, result)
+    return result
+  }
+
+  static parse(payload: unknown): ParsedException | null {
     // Check if payload contains exception data
     if (!this.isException(payload)) {
       return null
@@ -255,128 +253,109 @@ export class ExceptionParser {
       solutions,
       snippets,
       tags: this.generateTags(error, framework),
-      timestamp: payload.timestamp || Date.now(),
+      timestamp: (payload as { timestamp?: number }).timestamp || Date.now(),
       flag: this.determineFlag(error)
     }
   }
 
-  private static isException(payload: any): boolean {
-    return !!(
-      payload.exception ||
-      payload.error ||
-      payload.stack ||
-      payload.stackTrace ||
-      payload.trace ||
-      (payload.type && payload.type === 'exception') ||
-      (payload.message && (payload.file || payload.line || payload.stack))
+  private static isException(payload: unknown): boolean {
+    if (typeof payload !== 'object' || payload === null) {
+      return false
+    }
+
+    const obj = payload as Record<string, unknown>
+
+    return (
+      'exception' in obj ||
+      'error' in obj ||
+      'stack' in obj ||
+      'stackTrace' in obj ||
+      'trace' in obj ||
+      obj['type'] === 'exception' ||
+      ('message' in obj && ('file' in obj || 'line' in obj || 'stack' in obj))
     )
   }
 
   private static detectFramework(payload: any): ParsedException['framework'] {
     // Check explicit framework indicator
-    if (payload.framework) {
+    if (!payload.framework) {
+      if (
+        payload.exception?.includes('Illuminate\\') ||
+        payload.framework_version?.includes('Laravel')
+      ) {
+        return 'laravel'
+      }
+      if (payload.exception?.includes('Symfony\\') || payload.context?.profiler) {
+        return 'symfony'
+      }
+      if (payload.platform === 'node' || payload.process?.versions?.node) {
+        return 'node'
+      }
+      if (payload.componentStack || payload.component || payload.props !== undefined) {
+        return 'react'
+      }
+      if (payload.vm || payload.component?.$options || payload.vue) {
+        return 'vue'
+      }
+      if (payload.alpine || payload.$el) {
+        return 'alpine'
+      }
+      if (payload.exception || payload.file?.endsWith('.php')) {
+        return 'php'
+      }
+      if (
+        payload.exception?.includes('django.') ||
+        payload.framework_version?.includes('Django') ||
+        payload.context?.view ||
+        payload.traceback?.includes('django/')
+      ) {
+        return 'django'
+      }
+      if (
+        payload.exception?.includes('flask.') ||
+        payload.exception?.includes('werkzeug.') ||
+        payload.framework_version?.includes('Flask')
+      ) {
+        return 'flask'
+      }
+      if (
+        payload.exception?.includes('fastapi.') ||
+        payload.exception?.includes('pydantic.') ||
+        payload.framework_version?.includes('FastAPI')
+      ) {
+        return 'fastapi'
+      }
+      if (payload.exception?.includes('gin.') || payload.framework?.includes('gin')) {
+        return 'gin'
+      }
+      if (payload.exception?.includes('echo.') || payload.framework?.includes('echo')) {
+        return 'echo'
+      }
+      if (
+        payload.traceback ||
+        payload.exception?.includes('Error') ||
+        payload.exception?.includes('Exception') ||
+        payload.python_version
+      ) {
+        return 'python'
+      }
+      if (
+        payload.exception?.includes('panic:') ||
+        payload.exception?.includes('runtime error:') ||
+        payload.stack?.includes('goroutine') ||
+        payload.go_version
+      ) {
+        return 'go'
+      }
+      return 'js'
+    } else {
       return payload.framework as ParsedException['framework']
     }
 
     // Check Laravel specific
-    if (
-      payload.exception?.includes('Illuminate\\') ||
-      payload.framework_version?.includes('Laravel')
-    ) {
-      return 'laravel'
-    }
-
-    // Check Symfony specific
-    if (payload.exception?.includes('Symfony\\') || payload.context?.profiler) {
-      return 'symfony'
-    }
-
-    // Check Node.js
-    if (payload.platform === 'node' || payload.process?.versions?.node) {
-      return 'node'
-    }
-
-    // Check React
-    if (payload.componentStack || payload.component || payload.props !== undefined) {
-      return 'react'
-    }
-
-    // Check Vue
-    if (payload.vm || payload.component?.$options || payload.vue) {
-      return 'vue'
-    }
-
-    // Check Alpine
-    if (payload.alpine || payload.$el) {
-      return 'alpine'
-    }
-
-    // Default to vanilla based on error type
-    if (payload.exception || payload.file?.endsWith('.php')) {
-      return 'php'
-    }
-
-    // Check Django specific
-    if (
-      payload.exception?.includes('django.') ||
-      payload.framework_version?.includes('Django') ||
-      payload.context?.view ||
-      payload.traceback?.includes('django/')
-    ) {
-      return 'django'
-    }
-
-    // Check Flask specific
-    if (
-      payload.exception?.includes('flask.') ||
-      payload.exception?.includes('werkzeug.') ||
-      payload.framework_version?.includes('Flask')
-    ) {
-      return 'flask'
-    }
-
-    // Check FastAPI specific
-    if (
-      payload.exception?.includes('fastapi.') ||
-      payload.exception?.includes('pydantic.') ||
-      payload.framework_version?.includes('FastAPI')
-    ) {
-      return 'fastapi'
-    }
-
-    // Check Go frameworks
-    if (payload.exception?.includes('gin.') || payload.framework?.includes('gin')) {
-      return 'gin'
-    }
-
-    if (payload.exception?.includes('echo.') || payload.framework?.includes('echo')) {
-      return 'echo'
-    }
-
-    // Check Python (generic)
-    if (
-      payload.traceback ||
-      payload.exception?.includes('Error') ||
-      payload.exception?.includes('Exception') ||
-      payload.python_version
-    ) {
-      return 'python'
-    }
-
-    // Check Go (generic)
-    if (
-      payload.exception?.includes('panic:') ||
-      payload.exception?.includes('runtime error:') ||
-      payload.stack?.includes('goroutine') ||
-      payload.go_version
-    ) {
-      return 'go'
-    }
-
-    return 'js'
   }
 
-  private static parseError(payload: any, framework?: string): ParsedException['error'] {
+  private static parseError(payload: any, _framework?: string): ParsedException['error'] {
     const error: ParsedException['error'] = {
       class: 'Error',
       message: 'Unknown error'
@@ -419,7 +398,7 @@ export class ExceptionParser {
     const frames: StackFrame[] = []
 
     // Try different stack trace formats
-    let stackData = payload.trace || payload.stackTrace || payload.stack || payload.error?.stack
+    const stackData = payload.trace || payload.stackTrace || payload.stack || payload.error?.stack
 
     if (Array.isArray(stackData)) {
       // Already parsed stack trace (Laravel/Symfony format)
@@ -459,7 +438,7 @@ export class ExceptionParser {
     )
   }
 
-  private static parseStackFrameString(line: string, framework?: string): StackFrame | null {
+  private static parseStackFrameString(line: string, _framework?: string): StackFrame | null {
     // Node.js/JavaScript format: at functionName (file:line:column)
     const jsMatch = line.match(/at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/)
     if (jsMatch) {
@@ -554,15 +533,23 @@ export class ExceptionParser {
       }
     }
 
-    // Add any custom context
+    // Add any custom context (everything that isn't a well-known key)
     if (payload.context && typeof payload.context === 'object') {
-      const { request, user, session, environment, database, ...custom } = payload.context
+      const knownKeys = new Set(['request', 'user', 'session', 'environment', 'database'])
+      const custom = Object.fromEntries(
+        Object.entries(payload.context).filter(([key]) => !knownKeys.has(key))
+      )
       if (Object.keys(custom).length > 0) {
         context.custom = custom
       }
     }
 
-    if (framework === 'python' || framework === 'django' || framework === 'flask' || framework === 'fastapi') {
+    if (
+      framework === 'python' ||
+      framework === 'django' ||
+      framework === 'flask' ||
+      framework === 'fastapi'
+    ) {
       // Aktualizujte environment pro Python
       if (!context.environment) context.environment = {}
       context.environment = {
@@ -802,8 +789,8 @@ export class ExceptionParser {
 }
 
 // Helper function to generate test data
-export function generateExceptionTestData(framework: ParsedException['framework']): any {
-  const examples: Record<ParsedException['framework'], any> = {
+export function generateExceptionTestData(framework: ParsedException['framework']): unknown {
+  const examples: Record<string, unknown> = {
     laravel: {
       exception: 'Illuminate\\Database\\QueryException',
       message:
@@ -907,5 +894,5 @@ export function generateExceptionTestData(framework: ParsedException['framework'
     }
   }
 
-  return examples[framework] || examples['js']
+  return examples[framework ?? 'js'] ?? examples.js
 }

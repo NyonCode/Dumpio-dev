@@ -1,4 +1,7 @@
+import { type JSX } from 'react'
+import { Radio, Settings, Check } from 'lucide-react'
 import { Server } from '../App'
+import { serverDot } from '../lib/colors'
 
 interface SidebarProps {
   servers: Server[]
@@ -7,26 +10,37 @@ interface SidebarProps {
   selectedFlags: string[]
   onFlagsChange: (flags: string[]) => void
   onSettingsClick: () => void
+  serverCounts: Record<string, number>
+  flagCounts: Record<string, number>
+  channels: string[]
+  channelCounts: Record<string, number>
+  selectedChannel: string
+  onChannelSelect: (channel: string) => void
+  totalCount: number
 }
 
-const FLAG_COLORS = {
-  yellow: 'bg-dump-yellow',
+const FLAG_DOT: Record<string, string> = {
   red: 'bg-dump-red',
+  yellow: 'bg-dump-yellow',
   blue: 'bg-dump-blue',
-  gray: 'bg-dump-gray',
+  green: 'bg-dump-green',
   purple: 'bg-dump-purple',
   pink: 'bg-dump-pink',
-  green: 'bg-dump-green'
+  gray: 'bg-dump-gray'
 }
 
-const SERVER_COLORS = {
-  blue: 'bg-blue-500',
-  red: 'bg-red-500',
-  green: 'bg-green-500',
-  yellow: 'bg-yellow-500',
-  purple: 'bg-purple-500',
-  pink: 'bg-pink-500',
-  gray: 'bg-gray-500'
+// Shared row chrome: selected rows get a faint accent wash + accent text,
+// everything else is muted text that lifts to an elevated surface on hover.
+function rowClass(active: boolean): string {
+  return active ? 'bg-accent/10 text-accent' : 'text-muted hover:bg-elevated hover:text-fg'
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">
+      {children}
+    </h3>
+  )
 }
 
 export function Sidebar({
@@ -35,166 +49,163 @@ export function Sidebar({
   onServerSelect,
   selectedFlags,
   onFlagsChange,
-  onSettingsClick
-}: SidebarProps) {
-  const toggleFlag = (flag: string) => {
-    if (selectedFlags.includes(flag)) {
-      onFlagsChange(selectedFlags.filter((f) => f !== flag))
-    } else {
-      onFlagsChange([...selectedFlags, flag])
-    }
-  }
-
-  const getServerStatusIcon = (server: Server) => {
-    return server.active ? (
-      <div
-        className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
-        title="Server is active and running"
-      ></div>
-    ) : (
-      <div className="w-2 h-2 bg-gray-400 rounded-full" title="Server is inactive"></div>
+  onSettingsClick,
+  serverCounts,
+  flagCounts,
+  channels,
+  channelCounts,
+  selectedChannel,
+  onChannelSelect,
+  totalCount
+}: SidebarProps): JSX.Element {
+  const toggleFlag = (flag: string): void => {
+    onFlagsChange(
+      selectedFlags.includes(flag)
+        ? selectedFlags.filter((f) => f !== flag)
+        : [...selectedFlags, flag]
     )
   }
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-      {/* Header */}
-      {/*      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Dumpex
-        </h1>
-      </div>*/}
+    <div className="flex w-60 flex-col border-r border-line bg-panel">
+      {/* Brand */}
+      <div className="flex h-12 flex-shrink-0 items-center gap-2.5 border-b border-line px-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-white">
+          <Radio className="h-4 w-4" />
+        </div>
+        <div className="leading-none">
+          <h1 className="text-sm font-semibold text-fg">Dumpio</h1>
+          <span className="text-[10px] text-subtle">v{__APP_VERSION__}</span>
+        </div>
+      </div>
 
-      {/* Server List */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-3">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Servers</h3>
+      <div className="flex-1 overflow-y-auto py-3">
+        {/* Servers */}
+        <div className="px-2">
+          <SectionLabel>Servers</SectionLabel>
 
-          {/* All Servers Option */}
           <button
             onClick={() => onServerSelect('all')}
-            className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center space-x-3 transition-colors ${
+            className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${rowClass(
               selectedServerId === 'all'
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
+            )}`}
           >
-            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <span className="text-sm">All Servers</span>
-            <span className="ml-auto text-xs text-gray-500">{servers.length}</span>
+            <span className="h-2 w-2 flex-shrink-0 rounded-full bg-subtle" />
+            <span className="flex-1 truncate">All Servers</span>
+            <span className="text-xs tabular-nums text-subtle">{totalCount}</span>
           </button>
 
-          {/* Individual Servers */}
           {servers.map((server) => (
             <button
               key={server.id}
               onClick={() => onServerSelect(server.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center space-x-3 transition-colors ${
+              className={`mt-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${rowClass(
                 selectedServerId === server.id
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
+              )}`}
             >
-              <div
-                className={`w-3 h-3 rounded-full ${SERVER_COLORS[server.color as keyof typeof SERVER_COLORS] || 'bg-gray-400'}`}
-              ></div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium truncate">{server.name}</span>
-                  {getServerStatusIcon(server)}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {server.host}:{server.port}
-                </div>
-              </div>
+              <span
+                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${serverDot(server.color)}`}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{server.name}</span>
+                  <span
+                    className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                      server.active ? 'animate-pulse bg-emerald-500' : 'bg-subtle/50'
+                    }`}
+                    title={server.active ? 'Active' : 'Inactive'}
+                  />
+                </span>
+                <span className="block truncate text-[11px] text-subtle">
+                  <span className="uppercase">{server.protocol}</span> · {server.host}:{server.port}
+                </span>
+              </span>
+              <span className="text-xs tabular-nums text-subtle">
+                {serverCounts[server.id] ?? 0}
+              </span>
             </button>
           ))}
 
           {servers.length === 0 && (
-            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-              No servers configured
-            </div>
+            <div className="px-2 py-3 text-sm text-subtle">No servers configured</div>
           )}
         </div>
 
-        {/* Flag Filters */}
-        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Filter by Flag
-          </h3>
+        {/* Flag filters */}
+        <div className="mt-4 px-2">
+          <SectionLabel>Filter by flag</SectionLabel>
 
-          <div className="space-y-2">
-            {Object.entries(FLAG_COLORS).map(([flag, colorClass]) => (
+          {Object.entries(FLAG_DOT).map(([flag, dot]) => {
+            const active = selectedFlags.includes(flag)
+            return (
               <button
                 key={flag}
+                aria-pressed={active}
                 onClick={() => toggleFlag(flag)}
-                className={`w-full text-left px-3 py-2 rounded-lg flex items-center space-x-3 transition-colors ${
-                  selectedFlags.includes(flag)
-                    ? 'bg-gray-100 dark:bg-gray-700 ring-2 ring-blue-500'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                className={`mt-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+                  active ? 'bg-elevated text-fg' : 'text-muted hover:bg-elevated hover:text-fg'
                 }`}
               >
-                <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
-                <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{flag}</span>
-                {selectedFlags.includes(flag) && (
-                  <div className="ml-auto">
-                    <svg
-                      className="w-4 h-4 text-blue-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                )}
+                <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${dot}`} />
+                <span className="flex-1">{flag}</span>
+                <span className="text-xs tabular-nums text-subtle">{flagCounts[flag] ?? 0}</span>
+                {active && <Check className="h-3.5 w-3.5 text-accent" />}
               </button>
-            ))}
-          </div>
+            )
+          })}
 
           {selectedFlags.length > 0 && (
             <button
               onClick={() => onFlagsChange([])}
-              className="w-full mt-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="mt-2 w-full rounded-md border border-line px-2 py-1.5 text-xs text-muted transition-colors hover:bg-elevated hover:text-fg"
             >
-              Clear Filters
+              Clear flag filters
             </button>
           )}
         </div>
+
+        {/* Channels */}
+        {channels.length > 0 && (
+          <div className="mt-4 px-2">
+            <SectionLabel>Channels</SectionLabel>
+
+            <button
+              onClick={() => onChannelSelect('all')}
+              className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${rowClass(
+                selectedChannel === 'all'
+              )}`}
+            >
+              <span className="flex-1 truncate">All Channels</span>
+              <span className="text-xs tabular-nums text-subtle">{totalCount}</span>
+            </button>
+
+            {channels.map((channel) => (
+              <button
+                key={channel}
+                onClick={() => onChannelSelect(channel)}
+                className={`mt-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${rowClass(
+                  selectedChannel === channel
+                )}`}
+              >
+                <span className="flex-1 truncate font-mono text-[13px]">#{channel}</span>
+                <span className="text-xs tabular-nums text-subtle">
+                  {channelCounts[channel] ?? 0}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Settings Button */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+      {/* Settings */}
+      <div className="flex-shrink-0 border-t border-line p-2">
         <button
           onClick={onSettingsClick}
-          className="w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3 transition-colors"
+          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted transition-colors hover:bg-elevated hover:text-fg"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
+          <Settings className="h-4 w-4" />
           <span>Settings</span>
         </button>
-      </div>
-
-      {/* Version */}
-      <div className="p-1 border-t dark:border-gray-700">
-        <p className={'pl-6 my-1 text-gray-400 text-sm'}>Version: 1.0.0</p>
       </div>
     </div>
   )

@@ -1,0 +1,28 @@
+{
+  "name": "dumpio-client",
+  "version": "0.1.0",
+  "description": "Node.js client for the Dumpio dump viewer — sends faithful, typed value dumps over HTTP.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./middleware": {
+      "types": "./middleware.d.ts",
+      "default": "./middleware.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "serializer.js",
+    "middleware.js",
+    "middleware.d.ts",
+    "README.md"
+  ],
+  "keywords": ["dumpio", "debug", "dump", "dd", "var-dump"],
+  "license": "MIT",
+  "engines": { "node": ">=16" }
+}
