@@ -1,8 +1,10 @@
+// src/renderer/src/App.tsx
+
 import { useState, useEffect } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
-import { DumpViewer } from './components/DumpViewer'
+import { EnhancedDumpViewer } from './components/dump-viewer/EnhancedDumpViewer'
 import { SettingsModal } from './components/SettingsModal'
 import './assets/index.css'
 
@@ -31,6 +33,9 @@ export interface Settings {
   saveDumpsOnExit: boolean
   maxDumpsInMemory: number
   autoStartServers: boolean
+  autoSaveDumps: boolean
+  viewMode: 'detailed' | 'compact'
+  viewerMode: 'professional' | 'simple'
   ideIntegration: {
     enabled: boolean
     defaultIde: 'vscode' | 'jetbrains' | 'custom'
@@ -50,6 +55,13 @@ function App() {
   const [selectedFlags, setSelectedFlags] = useState<string[]>([])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [stats, setStats] = useState({
+    totalDumps: 0,
+    filteredDumps: 0,
+    recentActivity: 0,
+    exceptions: 0,
+    dataPackets: 0
+  })
 
   useEffect(() => {
     loadInitialData()
@@ -66,6 +78,7 @@ function App() {
       setSettings(settingsData)
       setServers(settingsData.servers)
       setDumps(dumpsData)
+      updateStats(dumpsData)
     } catch (error) {
       console.error('Failed to load initial data:', error)
     }
@@ -73,11 +86,16 @@ function App() {
 
   const setupEventListeners = () => {
     const unsubscribeDump = window.api.onDumpReceived((dump: Dump) => {
-      setDumps((prev) => [dump, ...prev].slice(0, 1000))
+      setDumps((prev) => {
+        const newDumps = [dump, ...prev].slice(0, settings?.maxDumpsInMemory || 1000)
+        updateStats(newDumps)
+        return newDumps
+      })
     })
 
     const unsubscribeCleared = window.api.onDumpsCleared(() => {
       setDumps([])
+      updateStats([])
     })
 
     const unsubscribeServerStarted = window.api.onServerStarted((server: Server) => {
@@ -96,10 +114,43 @@ function App() {
     }
   }
 
+  const updateStats = (dumpList: Dump[]) => {
+    const now = Date.now()
+    const oneMinuteAgo = now - 60000
+
+    // Count exceptions vs data dumps
+    let exceptions = 0
+    let dataPackets = 0
+
+    dumpList.forEach((dump) => {
+      // Simple check for exceptions - can be enhanced with ExceptionParser
+      if (
+        dump.payload?.exception ||
+        dump.payload?.error ||
+        dump.payload?.type === 'exception' ||
+        dump.payload?.stack ||
+        dump.payload?.trace
+      ) {
+        exceptions++
+      } else {
+        dataPackets++
+      }
+    })
+
+    setStats({
+      totalDumps: dumpList.length,
+      filteredDumps: dumpList.length, // Will be updated by filter
+      recentActivity: dumpList.filter((d) => d.timestamp > oneMinuteAgo).length,
+      exceptions,
+      dataPackets
+    })
+  }
+
   const handleClearDumps = async () => {
     try {
       await window.api.clearDumps()
       setDumps([])
+      updateStats([])
     } catch (error) {
       console.error('Failed to clear dumps:', error)
     }
@@ -109,7 +160,6 @@ function App() {
     try {
       const success = await window.api.exportDumps()
       if (success) {
-        // Could show success notification
         console.log('Dumps exported successfully')
       }
     } catch (error) {
@@ -119,11 +169,29 @@ function App() {
 
   const handleSaveSettings = async (newSettings: Settings) => {
     try {
-      await window.api.saveSettings(newSettings)
+      await window.api.saveSettingsAndSyncServers(newSettings)
       setSettings(newSettings)
       setServers(newSettings.servers)
     } catch (error) {
       console.error('Failed to save settings:', error)
+    }
+  }
+
+  const handleOpenInIde = async (file: string, line: number) => {
+    if (!settings?.ideIntegration.enabled) {
+      console.log(`Would open ${file}:${line} in IDE (IDE integration disabled)`)
+      return
+    }
+
+    try {
+      await window.api.openInIde({
+        file,
+        line,
+        ide: settings.ideIntegration.defaultIde,
+        customCommand: settings.ideIntegration.customCommand
+      })
+    } catch (error) {
+      console.error('Failed to open in IDE:', error)
     }
   }
 
@@ -153,12 +221,16 @@ function App() {
     return true
   })
 
+  useEffect(() => {
+    setStats((prev) => ({ ...prev, filteredDumps: filteredDumps.length }))
+  }, [filteredDumps.length])
+
   if (!settings) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading TCP Dump Viewer...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading DumpeX...</p>
         </div>
       </div>
     )
@@ -182,16 +254,19 @@ function App() {
             onSearchChange={setSearchQuery}
             onClearDumps={handleClearDumps}
             onExportDumps={handleExportDumps}
-            totalDumps={dumps.length}
-            filteredDumps={filteredDumps.length}
+            totalDumps={stats.totalDumps}
+            filteredDumps={stats.filteredDumps}
+            recentActivity={stats.recentActivity}
+            exceptions={stats.exceptions}
+            dataPackets={stats.dataPackets}
           />
 
-          <DumpViewer
+          <EnhancedDumpViewer
             dumps={filteredDumps}
             servers={servers}
-            onOpenInIde={(file, line) => {
-              window.api.openInIde({ file, line, ide: settings.ideIntegration.defaultIde })
-            }}
+            viewMode={settings.viewMode}
+            viewerMode={settings.viewerMode}
+            onOpenInIde={handleOpenInIde}
           />
         </div>
 

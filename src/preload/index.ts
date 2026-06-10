@@ -8,6 +8,8 @@ const api = {
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+  saveSettingsAndSyncServers: (settings: any) =>
+    ipcRenderer.invoke('save-settings-and-sync-servers', settings),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (theme: string) => ipcRenderer.invoke('set-theme', theme),
 
@@ -20,6 +22,9 @@ const api = {
   getDumps: () => ipcRenderer.invoke('get-dumps'),
   clearDumps: () => ipcRenderer.invoke('clear-dumps'),
   exportDumps: () => ipcRenderer.invoke('export-dumps'),
+
+  forceSaveDumps: () => ipcRenderer.invoke('force-save-dumps'),
+  getDumpStats: () => ipcRenderer.invoke('get-dump-stats'),
 
   // IDE integration
   openInIde: (params: any) => ipcRenderer.invoke('open-in-ide', params),

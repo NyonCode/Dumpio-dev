@@ -47,9 +47,12 @@ export function Sidebar({
 
   const getServerStatusIcon = (server: Server) => {
     return server.active ? (
-      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+      <div
+        className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
+        title="Server is active and running"
+      ></div>
     ) : (
-      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+      <div className="w-2 h-2 bg-gray-400 rounded-full" title="Server is inactive"></div>
     )
   }
 
@@ -191,7 +194,7 @@ export function Sidebar({
 
       {/* Version */}
       <div className="p-1 border-t dark:border-gray-700">
-        <span className={'text-gray-400 text-sm'}>Version: 1.0.0</span>
+        <p className={'pl-6 my-1 text-gray-400 text-sm'}>Version: 1.0.0</p>
       </div>
     </div>
   )
