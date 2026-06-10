@@ -25,7 +25,7 @@ on:
       - 'sdk/php/v*'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: publish-sdk-${{ github.ref }}
