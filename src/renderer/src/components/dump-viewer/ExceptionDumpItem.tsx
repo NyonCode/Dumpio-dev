@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, type JSX } from 'react'
 import { Dump, Server } from '../../App'
-import { ExceptionParser, type ParsedException } from '../../utils/exceptionParser'
+import { type ParsedException } from '../../utils/exceptionParser'
+import { CodeBlock } from './CodeBlock'
+import { EditorLink } from './EditorLink'
 
 interface ExceptionDumpItemProps {
   dump: Dump
   server: Server | undefined
   parsedException: ParsedException
-  onOpenInIde: (file: string, line: number) => void
   isExpanded: boolean
   onToggleExpand: () => void
 }
@@ -149,17 +150,15 @@ export function ExceptionDumpItem({
   dump,
   server,
   parsedException,
-  onOpenInIde,
   isExpanded,
   onToggleExpand
-}: ExceptionDumpItemProps) {
+}: ExceptionDumpItemProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<'stacktrace' | 'context' | 'solutions'>('stacktrace')
   const [expandedFrames, setExpandedFrames] = useState<Set<number>>(new Set([0]))
 
-  const frameworkStyle =
-    FRAMEWORK_STYLES[parsedException.framework || 'vanilla-js'] || FRAMEWORK_STYLES['vanilla-js']
+  const frameworkStyle = FRAMEWORK_STYLES[parsedException.framework ?? 'js'] ?? FRAMEWORK_STYLES.js
 
-  const toggleFrame = (index: number) => {
+  const toggleFrame = (index: number): void => {
     setExpandedFrames((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(index)) {
@@ -171,7 +170,7 @@ export function ExceptionDumpItem({
     })
   }
 
-  const formatTimestamp = (timestamp: number) => {
+  const formatTimestamp = (timestamp: number): string => {
     const date = new Date(timestamp)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
@@ -185,7 +184,7 @@ export function ExceptionDumpItem({
   }
 
   return (
-    <div className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+    <div className="group overflow-hidden rounded-lg border border-line bg-panel shadow-sm transition-all duration-200 hover:shadow-md">
       {/* Exception Header */}
       <div
         className={`bg-gradient-to-r ${frameworkStyle.gradient} text-white p-4 cursor-pointer`}
@@ -222,9 +221,12 @@ export function ExceptionDumpItem({
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
-                <span className="font-mono">
-                  {parsedException.error.file.split('/').pop()}:{parsedException.error.line}
-                </span>
+                <EditorLink
+                  file={parsedException.error.file}
+                  line={parsedException.error.line}
+                  basename
+                  className="font-mono"
+                />
               </div>
             )}
           </div>
@@ -254,9 +256,9 @@ export function ExceptionDumpItem({
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="border-t border-slate-200 dark:border-slate-700">
+        <div className="border-t border-line">
           {/* Mini Tabs */}
-          <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex border-b border-line bg-sunken">
             {[
               { key: 'stacktrace', label: 'Stack Trace', count: parsedException.stackTrace.length },
               {
@@ -270,18 +272,18 @@ export function ExceptionDumpItem({
                 key={tab.key}
                 onClick={(e) => {
                   e.stopPropagation()
-                  setActiveTab(tab.key as any)
+                  setActiveTab(tab.key as 'stacktrace' | 'context' | 'solutions')
                 }}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === tab.key
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    ? 'border-accent bg-panel text-accent'
+                    : 'border-transparent text-muted hover:text-fg'
                 }`}
                 disabled={tab.available === false}
               >
                 {tab.label}
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700">
+                  <span className="ml-1 rounded-full bg-elevated px-1.5 py-0.5 text-xs">
                     {tab.count}
                   </span>
                 )}
@@ -294,91 +296,63 @@ export function ExceptionDumpItem({
             {activeTab === 'stacktrace' && (
               <div className="space-y-2">
                 {parsedException.stackTrace.slice(0, 5).map((frame, index) => (
-                  <div
-                    key={index}
-                    className="border border-gray-200 dark:border-gray-700 rounded overflow-hidden"
-                  >
+                  <div key={index} className="overflow-hidden rounded border border-line">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         toggleFrame(index)
                       }}
-                      className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left text-sm"
+                      className="w-full bg-sunken px-3 py-2 text-left text-sm transition-colors hover:bg-elevated"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <span className="text-gray-500 font-mono text-xs">#{index}</span>
+                          <span className="font-mono text-xs text-subtle">#{index}</span>
                           <div>
                             {frame.class && (
-                              <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                              <span className="font-mono text-xs text-accent">
                                 {frame.class}
-                                {frame.type && <span className="text-gray-500">{frame.type}</span>}
+                                {frame.type && <span className="text-subtle">{frame.type}</span>}
                                 {frame.function}()
                               </span>
                             )}
                             {!frame.class && frame.function && (
-                              <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                              <span className="font-mono text-xs text-accent">
                                 {frame.function}()
                               </span>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {frame.file}:{frame.line}
-                              {frame.column && `:${frame.column}`}
+                            <div className="text-xs text-muted">
+                              {frame.file ? (
+                                <EditorLink file={frame.file} line={frame.line} />
+                              ) : (
+                                frame.line
+                              )}
+                              {frame.column ? `:${frame.column}` : ''}
                             </div>
                           </div>
                         </div>
-                        {frame.file && onOpenInIde && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onOpenInIde(frame.file, frame.line)
-                            }}
-                            className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                            title="Open in IDE"
-                          >
-                            <svg
-                              className="w-3 h-3"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                              />
-                            </svg>
-                          </button>
-                        )}
                       </div>
                     </button>
 
-                    {expandedFrames.has(index) && frame.code && (
-                      <div className="p-3 bg-gray-900 dark:bg-black">
-                        <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
-                          {frame.code.map((line, i) => (
-                            <div
-                              key={i}
-                              className={`${
-                                i === Math.floor(frame.code.length / 2)
-                                  ? 'bg-red-500/20 border-l-2 border-red-500 pl-2'
-                                  : 'pl-3'
-                              }`}
-                            >
-                              <span className="inline-block w-8 text-gray-500">
-                                {(frame.line || 0) - Math.floor(frame.code.length / 2) + i}
-                              </span>
-                              <span>{line}</span>
-                            </div>
-                          ))}
-                        </pre>
-                      </div>
-                    )}
+                    {expandedFrames.has(index) &&
+                      frame.code &&
+                      (() => {
+                        const code = frame.code
+                        const mid = Math.floor(code.length / 2)
+                        return (
+                          <CodeBlock
+                            code={code.join('\n')}
+                            lang={parsedException.framework}
+                            showLineNumbers
+                            startLine={(frame.line || 0) - mid}
+                            highlightLines={[mid + 1]}
+                            className="border-t border-line"
+                          />
+                        )
+                      })()}
                   </div>
                 ))}
                 {parsedException.stackTrace.length > 5 && (
-                  <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">
+                  <div className="py-2 text-center text-sm text-muted">
                     ... and {parsedException.stackTrace.length - 5} more frames
                   </div>
                 )}
@@ -390,10 +364,8 @@ export function ExceptionDumpItem({
               <div className="space-y-4">
                 {parsedException.context.request && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      Request
-                    </h4>
-                    <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded text-sm">
+                    <h4 className="mb-2 text-sm font-semibold text-fg">Request</h4>
+                    <div className="rounded bg-sunken p-3 text-sm">
                       <div className="flex items-center space-x-3 mb-2">
                         <span
                           className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -401,7 +373,7 @@ export function ExceptionDumpItem({
                               ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                               : parsedException.context.request.method === 'POST'
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
+                                : 'bg-elevated text-muted'
                           }`}
                         >
                           {parsedException.context.request.method}
@@ -411,7 +383,7 @@ export function ExceptionDumpItem({
                         </span>
                       </div>
                       {parsedException.context.request.ip && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-subtle">
                           IP: {parsedException.context.request.ip}
                         </div>
                       )}
@@ -421,20 +393,18 @@ export function ExceptionDumpItem({
 
                 {parsedException.context.user && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      User
-                    </h4>
-                    <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded text-sm">
+                    <h4 className="mb-2 text-sm font-semibold text-fg">User</h4>
+                    <div className="rounded bg-sunken p-3 text-sm">
                       <div className="space-y-1">
                         {parsedException.context.user.email && (
                           <div className="text-xs">
-                            <span className="text-gray-500">Email:</span>{' '}
+                            <span className="text-subtle">Email:</span>{' '}
                             {parsedException.context.user.email}
                           </div>
                         )}
                         {parsedException.context.user.id && (
                           <div className="text-xs">
-                            <span className="text-gray-500">ID:</span>{' '}
+                            <span className="text-subtle">ID:</span>{' '}
                             {parsedException.context.user.id}
                           </div>
                         )}
@@ -445,31 +415,23 @@ export function ExceptionDumpItem({
 
                 {parsedException.context.database && parsedException.context.database.query && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      Database Query
-                    </h4>
-                    <div className="bg-gray-900 p-3 rounded">
-                      <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
-                        {parsedException.context.database.query}
-                      </pre>
-                      {parsedException.context.database.time && (
-                        <div className="mt-2 text-xs text-gray-400">
-                          Execution time: {parsedException.context.database.time}ms
-                        </div>
-                      )}
-                    </div>
+                    <h4 className="mb-2 text-sm font-semibold text-fg">Database Query</h4>
+                    <CodeBlock code={parsedException.context.database.query} lang="sql" />
+                    {parsedException.context.database.time && (
+                      <div className="mt-1.5 text-xs text-muted">
+                        Execution time: {parsedException.context.database.time}ms
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {parsedException.context.environment && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      Environment
-                    </h4>
+                    <h4 className="mb-2 text-sm font-semibold text-fg">Environment</h4>
                     <div className="grid grid-cols-2 gap-2">
                       {Object.entries(parsedException.context.environment).map(([key, value]) => (
-                        <div key={key} className="bg-gray-50 dark:bg-gray-800/50 p-2 rounded">
-                          <span className="text-xs text-gray-500">{key.replace(/_/g, ' ')}:</span>
+                        <div key={key} className="rounded bg-sunken p-2">
+                          <span className="text-xs text-subtle">{key.replace(/_/g, ' ')}:</span>
                           <div className="font-mono text-xs">{String(value)}</div>
                         </div>
                       ))}
@@ -483,19 +445,14 @@ export function ExceptionDumpItem({
             {activeTab === 'solutions' && (
               <div className="space-y-3">
                 {parsedException.solutions.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-sm">
+                  <div className="py-4 text-center text-sm text-muted">
                     No automatic solutions found for this error.
                   </div>
                 ) : (
                   parsedException.solutions.map((solution, index) => (
-                    <div
-                      key={index}
-                      className="border border-gray-200 dark:border-gray-700 rounded p-3"
-                    >
-                      <div className="flex items-start justify-between mb-1">
-                        <h5 className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                          {solution.title}
-                        </h5>
+                    <div key={index} className="rounded border border-line p-3">
+                      <div className="mb-1 flex items-start justify-between">
+                        <h5 className="text-sm font-medium text-fg">{solution.title}</h5>
                         {solution.probability && (
                           <span
                             className={`px-1.5 py-0.5 text-xs rounded-full ${
@@ -503,27 +460,23 @@ export function ExceptionDumpItem({
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                 : solution.probability >= 60
                                   ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
+                                  : 'bg-elevated text-muted'
                             }`}
                           >
                             {solution.probability}%
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                        {solution.description}
-                      </p>
+                      <p className="mb-2 text-xs text-muted">{solution.description}</p>
                       {solution.code && (
-                        <pre className="p-2 bg-gray-900 text-gray-300 rounded text-xs overflow-x-auto">
-                          {solution.code}
-                        </pre>
+                        <CodeBlock code={solution.code} lang={parsedException.framework} />
                       )}
                       {solution.link && (
                         <a
                           href={solution.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center mt-2 text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                          className="mt-2 inline-flex items-center text-xs text-accent hover:underline"
                         >
                           Learn more →
                         </a>

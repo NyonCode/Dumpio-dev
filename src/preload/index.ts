@@ -1,22 +1,31 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 export type IpcRenderer = typeof ipcRenderer
+
+type Unsubscribe = () => void
 
 // Custom APIs for renderer
 const api = {
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
-  saveSettingsAndSyncServers: (settings: any) =>
+  saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
+  saveSettingsAndSyncServers: (settings: unknown) =>
     ipcRenderer.invoke('save-settings-and-sync-servers', settings),
   getTheme: () => ipcRenderer.invoke('get-theme'),
   setTheme: (theme: string) => ipcRenderer.invoke('set-theme', theme),
+  setAlwaysOnTop: (flag: boolean) => ipcRenderer.invoke('set-always-on-top', flag),
+  getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
+  openPath: () => ipcRenderer.invoke('open-path'),
+  exportSettings: () => ipcRenderer.invoke('export-settings'),
+  importSettings: () => ipcRenderer.invoke('import-settings'),
 
   // Server management
-  startServer: (server: any) => ipcRenderer.invoke('start-server', server),
+  startServer: (server: unknown) => ipcRenderer.invoke('start-server', server),
   stopServer: (serverId: string) => ipcRenderer.invoke('stop-server', serverId),
-  restartServer: (server: any) => ipcRenderer.invoke('restart-server', server),
+  restartServer: (server: unknown) => ipcRenderer.invoke('restart-server', server),
+  getServerStatus: () => ipcRenderer.invoke('get-server-status'),
+  sendTestDump: (serverId: string) => ipcRenderer.invoke('send-test-dump', serverId),
 
   // Dump management
   getDumps: () => ipcRenderer.invoke('get-dumps'),
@@ -26,36 +35,39 @@ const api = {
   forceSaveDumps: () => ipcRenderer.invoke('force-save-dumps'),
   getDumpStats: () => ipcRenderer.invoke('get-dump-stats'),
 
-  // IDE integration
-  openInIde: (params: any) => ipcRenderer.invoke('open-in-ide', params),
+  // External links (validated in main: http/https only)
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+
+  // Open a file:line in the user's editor (validated in main: editor schemes only)
+  openInEditor: (url: string) => ipcRenderer.invoke('open-in-editor', url),
 
   // Event listeners
-  onDumpReceived: (callback: (dump: any) => void) => {
-    const handler = (_: any, dump: any) => callback(dump)
+  onDumpReceived: (callback: (dump: unknown) => void): Unsubscribe => {
+    const handler = (_: IpcRendererEvent, dump: unknown): void => callback(dump)
     ipcRenderer.on('dump-received', handler)
     return () => ipcRenderer.removeListener('dump-received', handler)
   },
 
-  onServerStarted: (callback: (server: any) => void) => {
-    const handler = (_: any, server: any) => callback(server)
+  onServerStarted: (callback: (serverId: string) => void): Unsubscribe => {
+    const handler = (_: IpcRendererEvent, serverId: string): void => callback(serverId)
     ipcRenderer.on('server-started', handler)
     return () => ipcRenderer.removeListener('server-started', handler)
   },
 
-  onServerStopped: (callback: (serverId: string) => void) => {
-    const handler = (_: any, serverId: string) => callback(serverId)
+  onServerStopped: (callback: (serverId: string) => void): Unsubscribe => {
+    const handler = (_: IpcRendererEvent, serverId: string): void => callback(serverId)
     ipcRenderer.on('server-stopped', handler)
     return () => ipcRenderer.removeListener('server-stopped', handler)
   },
 
-  onServerError: (callback: (error: any) => void) => {
-    const handler = (_: any, error: any) => callback(error)
+  onServerError: (callback: (error: unknown) => void): Unsubscribe => {
+    const handler = (_: IpcRendererEvent, error: unknown): void => callback(error)
     ipcRenderer.on('server-error', handler)
     return () => ipcRenderer.removeListener('server-error', handler)
   },
 
-  onDumpsCleared: (callback: () => void) => {
-    const handler = () => callback()
+  onDumpsCleared: (callback: () => void): Unsubscribe => {
+    const handler = (): void => callback()
     ipcRenderer.on('dumps-cleared', handler)
     return () => ipcRenderer.removeListener('dumps-cleared', handler)
   }

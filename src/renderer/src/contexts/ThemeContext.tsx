@@ -22,6 +22,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.
   useEffect(() => {
     // Apply theme changes
     applyTheme()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme])
 
   const loadTheme = async (): Promise<void> => {
@@ -71,6 +72,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.
     }
     // Return undefined explicitly when theme is not 'system'
     return undefined
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme])
 
   return (
@@ -80,6 +82,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext)
   if (context === undefined) {

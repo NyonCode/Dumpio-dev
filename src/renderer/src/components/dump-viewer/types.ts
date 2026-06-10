@@ -3,15 +3,12 @@ import { Dump, Server } from '../../App'
 export interface DumpViewerProps {
   dumps: Dump[]
   servers: Server[]
-  onOpenInIde: (file: string, line: number) => void
   viewMode?: 'detailed' | 'compact'
-  viewerMode?: 'professional' | 'simple'
 }
 
 export interface DumpItemProps {
   dump: Dump
   server: Server | undefined
-  onOpenInIde: (file: string, line: number) => void
   isExpanded: boolean
   onToggleExpand: () => void
   isNew?: boolean
@@ -30,7 +27,6 @@ export interface DumpContentProps {
   onToggleExpand: () => void
   isExpanded: boolean
   fileLocation?: FileLocation
-  onOpenInIde: (file: string, line: number) => void
   onCopy: () => void
   copySuccess: boolean
 }
@@ -39,11 +35,10 @@ export interface DumpPayloadProps {
   dump: Dump
   onCopy: () => void
   copySuccess: boolean
-  viewerMode?: 'professional' | 'simple'
 }
 
 export interface JsonViewerProps {
-  value: any
+  value: unknown
   depth?: number
   expanded?: boolean
 }

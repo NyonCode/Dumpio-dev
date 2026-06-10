@@ -1,80 +1,40 @@
-import { EmptyStateProps } from './types'
+import { type JSX } from 'react'
+import { Inbox } from 'lucide-react'
 
-export function EmptyState({}: EmptyStateProps) {
+const STEPS = [
+  'Configure a server in Settings (HTTP on localhost:21234 by default).',
+  'Send JSON to it — POST /dumps over HTTP, or raw JSON over TCP.',
+  'Add a "flag" to categorize a dump.'
+]
+
+export function EmptyState(): JSX.Element {
   return (
-    <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-      <div className="text-center max-w-lg">
-        {/* Empty State Icon */}
-        <div className="mx-auto h-32 w-32 text-slate-300 dark:text-slate-600 mb-8">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={0.5}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
+    <div className="flex flex-1 items-center justify-center bg-surface px-6">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-elevated text-subtle">
+          <Inbox className="h-7 w-7" />
         </div>
 
-        <h3 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mb-3">
-          No dumps yet
-        </h3>
-        <p className="text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
-          Start your TCP servers and begin sending data to see dumps appear here.
-          <br />
-          Configure your servers in Settings to get started.
+        <h3 className="mb-1.5 text-lg font-semibold text-fg">No dumps yet</h3>
+        <p className="mb-6 text-sm leading-relaxed text-muted">
+          Send data to a configured server and it will appear here in real time.
         </p>
 
-        {/* Getting Started Card */}
-        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-xl p-6 text-left">
-          <div className="flex items-center mb-4">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-              Getting Started
-            </h4>
-          </div>
+        <div className="rounded-lg border border-line bg-panel p-4 text-left">
+          <ol className="space-y-2.5">
+            {STEPS.map((step, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-sm text-muted">
+                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold text-accent">
+                  {i + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
 
-          <div className="space-y-3 text-sm text-blue-800 dark:text-blue-200">
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-blue-700 dark:text-blue-300 text-xs font-bold">1</span>
-              </div>
-              <p>Configure your TCP servers in the Settings panel</p>
-            </div>
-
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-blue-700 dark:text-blue-300 text-xs font-bold">2</span>
-              </div>
-              <p>Send JSON data to the configured host:port</p>
-            </div>
-
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-blue-700 dark:text-blue-300 text-xs font-bold">3</span>
-              </div>
-              <div>
-                <p>Use flags to categorize your dumps:</p>
-                <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded text-xs mt-1 inline-block">
-                  {`{ "message": "Hello", "flag": "red" }`}
-                </code>
-              </div>
-            </div>
-          </div>
+          <code className="mt-3 block rounded-md bg-sunken px-2.5 py-1.5 font-mono text-[11px] text-muted">
+            {`{ "message": "Hello", "flag": "red" }`}
+          </code>
         </div>
       </div>
     </div>

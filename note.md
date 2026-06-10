@@ -1,0 +1,1 @@
+- Přidat do security tlačítko pro generování tokenu

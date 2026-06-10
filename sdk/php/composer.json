@@ -1,0 +1,45 @@
+{
+    "name": "dumpio/client",
+    "description": "PHP client for the Dumpio dump viewer — sends faithful, typed value dumps and structured messages (exceptions, queries, HTTP, logs, models, …) over HTTP.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["dumpio", "debug", "dump", "dd", "var-dump", "laravel", "symfony"],
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "doctrine/dbal": "^4.0",
+        "laravel/framework": "^10.0 || ^11.0 || ^12.0",
+        "symfony/http-kernel": "^6.0 || ^7.0",
+        "symfony/event-dispatcher": "^6.0 || ^7.0",
+        "symfony/messenger": "^6.0 || ^7.0"
+    },
+    "suggest": {
+        "laravel/framework": "Enables the Dumpio service provider (auto-discovered): config + auto-forwarding of queries, exceptions, dd()/dump(), and model/cache/job/app events.",
+        "symfony/http-kernel": "Enables the Dumpio bundle and kernel.exception subscriber.",
+        "doctrine/dbal": "Enables Symfony Doctrine query forwarding via the Dumpio DBAL middleware (requires DBAL 4).",
+        "symfony/messenger": "Enables Symfony Messenger lifecycle forwarding (sent/received/handled/failed)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Dumpio\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Dumpio\\Laravel\\DumpioServiceProvider"
+            ],
+            "aliases": {
+                "Dumpio": "Dumpio\\Laravel\\Facades\\Dumpio"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

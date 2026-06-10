@@ -1,6 +1,7 @@
-// Vytvořte nový soubor: python-go-test-client.js
+// python-go-test-client.js — manual client for Python/Go framework exceptions.
+// Run: node tests/python-go-test-client.js   (HTTP by default; DUMPIO_PROTOCOL=tcp for legacy)
 
-const net = require('net')
+const { sendDump, PROTOCOL } = require('./send')
 
 class SimpleTestClient {
   constructor(host = 'localhost', port = 21234) {
@@ -8,17 +9,9 @@ class SimpleTestClient {
     this.port = port
   }
 
-  sendData(data) {
-    return new Promise((resolve, reject) => {
-      const client = new net.Socket()
-      client.connect(this.port, this.host, () => {
-        client.write(JSON.stringify(data) + '\n')
-        console.log(`✅ Sent ${data.framework} exception`)
-        client.end()
-        resolve()
-      })
-      client.on('error', reject)
-    })
+  async sendData(data) {
+    await sendDump(data, { host: this.host, port: this.port })
+    console.log(`✅ Sent ${data.framework} exception (${PROTOCOL})`)
   }
 
   // Python Django chyba
