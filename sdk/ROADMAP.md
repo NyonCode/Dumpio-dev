@@ -118,6 +118,29 @@ modifiers `->size()` / `->hide()` / `->expand()`. Each is a new dump `type` (or
 envelope hint) + a small renderer view. Add on demand. (`html` / `mailable` are
 promoted to P3 / M4.)
 
+### P6 — Per-SDK parity: Node / Python / Symfony → M8
+
+The PHP client is the richest; bring the others up to it. **Parity matrix and
+per-SDK task breakdown live in `PLAN-IMPLEMENTATION.md` M8.**
+
+- **Node / JS** [`sdk/node`] — fluent builder (`dio(x).red().label().when().once()
+  .limit().count()`) + `stopwatch()`; DB query auto-capture (Prisma / Sequelize /
+  TypeORM / Knex); Pino / Winston transports; outbound HTTP (fetch/axios/undici);
+  ORM model shapes. JS has no destructors → explicit `.send()` / request-end flush.
+- **Python** [`sdk/python`] — same builder + `stopwatch()`; DB query auto-capture
+  (Django, SQLAlchemy `before_cursor_execute`); FastAPI exception capture (today
+  http-only); outbound HTTP (`requests`/`httpx`); Django/Pydantic/SQLAlchemy model
+  shapes.
+- **Symfony** [`sdk/php/src/Symfony`] — reach Laravel parity: runtime `show*`
+  toggles, HTTP-client capture, mail, cache (`TraceableAdapter` decorator — Symfony
+  has no cache events), Doctrine query **bindings** (today SQL + timing only), Twig
+  render events.
+- **PHP core** — extra serializer shapes (Symfony UID, Doctrine `Collection`,
+  `Stringable`, `JsonSerializable`, `SplObjectStorage`).
+- **Shared contract**: one wire format (`BUILDING.md`); builder method names are
+  **identical across languages** so docs + muscle-memory transfer 1:1.
+- **Go**: no SDK yet — add after the payload model settles.
+
 ---
 
 ## Livewire 3 & 4 support → parallel track (after M2)
