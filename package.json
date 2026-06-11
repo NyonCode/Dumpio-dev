@@ -1,6 +1,6 @@
 {
   "name": "dumpio",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Dumpio — a real-time TCP/HTTP receiver and viewer for JSON debug dumps from Laravel, Node, Python, Go and more.",
   "main": "dist-electron/main/index.js",
   "author": "Ondřej Nyklíček",
