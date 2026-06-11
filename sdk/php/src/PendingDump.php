@@ -33,6 +33,12 @@ final class PendingDump
 
     private ?int $limit = null;
 
+    /** When true, a {@see when()} gate failed and nothing should ship. */
+    private bool $suppressed = false;
+
+    /** Optional explicit key for once/limit/count, set by {@see count()}. */
+    private ?string $countName = null;
+
     /** @var array<string,int> per-process hit counts, keyed by call-site */
     private static array $counts = [];
 
@@ -100,6 +106,29 @@ final class PendingDump
     }
 
     /**
+     * Only ship when `$condition` is true; otherwise the dump is silently
+     * dropped (and does not count toward once()/limit()/count()):
+     *
+     *   dio($payload)->when($request->isDebug())->yellow();
+     */
+    public function when(bool $condition): self
+    {
+        if (!$condition) {
+            $this->suppressed = true;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Inverse of {@see when()}: ship only when `$condition` is false.
+     */
+    public function unless(bool $condition): self
+    {
+        return $this->when(!$condition);
+    }
+
+    /**
      * Send only the first time this call-site is reached (per process).
      */
     public function once(): self
@@ -120,12 +149,18 @@ final class PendingDump
     }
 
     /**
-     * Collapse repeated sends from this call-site onto a single, live-updating
-     * entry in the viewer (carries a `dedupeKey` and running `count`). Ships now.
+     * Collapse repeated sends onto a single, live-updating entry in the viewer
+     * (carries a `dedupeKey` and running `count`). Ships now.
+     *
+     * By default repeats are grouped per call-site; pass `$name` to share a
+     * counter across call-sites (e.g. `dio($x)->count('loop')`).
      */
-    public function count(): void
+    public function count(?string $name = null): void
     {
         $this->aggregate = true;
+        if ($name !== null) {
+            $this->countName = $name;
+        }
         $this->send();
     }
 
@@ -138,6 +173,10 @@ final class PendingDump
             return;
         }
         $this->sent = true;
+
+        if ($this->suppressed) {
+            return;
+        }
 
         $extra = [];
 
@@ -170,10 +209,15 @@ final class PendingDump
     }
 
     /**
-     * A stable key for this call-site (file:line), used for once/limit/count.
+     * A stable key for once/limit/count: the explicit {@see count()} name when
+     * set, otherwise this call-site (file:line).
      */
     private function callSiteKey(): string
     {
+        if ($this->countName !== null) {
+            return \md5('name:'.$this->countName);
+        }
+
         $file = $this->caller['file'] ?? '?';
         $line = $this->caller['line'] ?? 0;
 

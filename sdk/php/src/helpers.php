@@ -9,7 +9,8 @@ if (!\function_exists('dumpio')) {
      * Send a value to the Dumpio app as a faithful, typed `var` dump.
      *
      * Returns the value unchanged, so it can wrap an expression like Laravel's
-     * `tap()`: `return dumpio($user, 'user');`
+     * `tap()`: `return dumpio($user, 'user');`. For a chainable builder use
+     * {@see dio()} instead.
      */
     function dumpio(mixed $value, ?string $label = null, string $flag = 'blue'): mixed
     {
@@ -19,19 +20,32 @@ if (!\function_exists('dumpio')) {
     }
 }
 
-if (! function_exists('dio')) {
-
+if (!\function_exists('dio')) {
     /**
-     * Send a value to the Dumpio app as a faithful, typed `var` dump.
+     * Begin a fluent Dumpio dump (Ray-style):
      *
-     * Returns the value unchanged, so it can wrap an expression like Laravel's
-     * `tap()`: `return dumpio($user, 'user');`
+     *   dio($user)->red()->label('user')->channel('auth');
+     *   dio($value);                        // ships at end of statement
+     *   dio($n)->count();                   // live-updating counter
+     *   dio($x)->when($debug)->yellow();    // conditional send
+     *
+     * Returns the {@see \Dumpio\PendingDump} builder, which ships on `->send()`
+     * or automatically when it goes out of scope (so `->send()` is optional).
+     * If you need the value passed through (tap-style `return …($x)`), use
+     * {@see dumpio()} instead.
      */
-    function dio(mixed $value, ?string $label = null, string $flag = 'blue'): mixed
+    function dio(mixed $value, ?string $label = null, ?string $flag = null): \Dumpio\PendingDump
     {
-        Dumpio::dump($value, $label, $flag);
+        $dump = Dumpio::make($value);
 
-        return $value;
+        if ($label !== null) {
+            $dump->label($label);
+        }
+        if ($flag !== null) {
+            $dump->flag($flag);
+        }
+
+        return $dump;
     }
 }
 

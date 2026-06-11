@@ -6,6 +6,7 @@ viewer. HTTP-first, fire-and-forget, **never breaks the host app** — every cal
 swallows its own errors and silently drops if the viewer isn't running.
 
 Built to the authoritative client contract in [`../BUILDING.md`](../BUILDING.md).
+For a thorough, example-driven walkthrough see [`docs/GUIDE.md`](docs/GUIDE.md).
 
 ## Install
 
@@ -31,10 +32,14 @@ Dumpio::configure(['host' => 'localhost', 'port' => 21234, 'token' => 'secret'])
 ## The basics — `var` dumps
 
 ```php
-dumpio($user, 'user', 'blue'); // global helper, returns $user (chainable, like tap())
+dio($user, 'user')->green();   // fluent builder (auto-sends); see below
+dumpio($user, 'user', 'blue'); // tap-style: sends and returns $user, like tap()
 ddio($a, $b);                  // dump every arg, then die
 // or: Dumpio::dump($user, 'user'); Dumpio::dd($a, $b);
 ```
+
+`dio()` returns the fluent builder so you can chain color/label/flood control;
+`dumpio()` returns the **value** so you can wrap an expression. Pick by need.
 
 The `var` serializer uses Reflection, so **member visibility**
 (public/protected/private), class names, typed/uninitialized properties and
@@ -50,26 +55,36 @@ inert when Laravel is absent.
 
 ### Fluent builder & flood control
 
-`Dumpio::make()` returns a chainable builder. The dump ships on `->send()` or
-automatically when the builder goes out of scope, so `->send()` is optional:
+`dio()` (and `Dumpio::make()`) return a chainable builder. The dump ships on
+`->send()` or automatically when the builder goes out of scope, so `->send()` is
+optional:
 
 ```php
-Dumpio::make($user)->red()->label('user')->channel('auth')->send();
-Dumpio::make($payload)->purple();   // auto-sends at end of statement
+dio($user)->red()->label('user')->channel('auth');   // auto-sends
+Dumpio::make($payload)->purple()->send();             // explicit send
 ```
 
 Colors: `red() yellow() blue() gray() purple() pink() green()` (or `flag('…')`),
-plus `label()` and `channel()`.
+plus `label()`, `channel()`, and conditional `when($bool)` / `unless($bool)`.
 
-Three helpers keep loops from flooding the viewer (keyed by call-site `file:line`,
-per process):
+Helpers keep loops from flooding the viewer (keyed by call-site `file:line`,
+per process — or by an explicit name):
 
 ```php
 foreach ($rows as $row) {
-    Dumpio::make($row)->once();      // only the first iteration is sent
-    Dumpio::make($row)->limit(5);    // at most 5 are sent
-    Dumpio::make($row)->count();     // one live-updating entry, "×N" in the viewer
+    dio($row)->once();          // only the first iteration is sent
+    dio($row)->limit(5);        // at most 5 are sent
+    dio($row)->count();         // one live-updating entry, "×N" in the viewer
+    dio($row)->count('rows');   // share one counter across call-sites
 }
+```
+
+Time a block with a stopwatch (ships a `measure` dump with elapsed ms + memory):
+
+```php
+$sw = Dumpio::stopwatch('import');
+$sw->lap('parsed');   // intermediate split, keeps running
+$sw->stop('done');    // final timing
 ```
 
 ### Chainable macros (Laravel)

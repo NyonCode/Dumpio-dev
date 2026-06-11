@@ -3,6 +3,11 @@
 Tracks the Ray-parity work beyond what's already shipped. Done items are listed
 for context; the rest is prioritized by value/cost.
 
+> Sequenced, task-sized execution lives in
+> [`../PLAN-IMPLEMENTATION.md`](../PLAN-IMPLEMENTATION.md) (milestones M1–M7); this
+> file is the feature-level catalogue. Detailed SDK rationale is in
+> [`../PLAN-PHP-SDK-RAY-PARITY.md`](../PLAN-PHP-SDK-RAY-PARITY.md).
+
 ## Shipped
 
 - **Serializer**: Eloquent model / Laravel Collection / `DateTimeInterface`-aware
@@ -11,16 +16,33 @@ for context; the rest is prioritized by value/cost.
   `dd()`/`dump()` interception, model events, cache events, queue jobs, app events.
 - **Symfony auto-instrumentation**: exceptions, Doctrine (DBAL 4) queries,
   Messenger lifecycle, `dump()`/`dd()` interception.
-- **Fluent builder**: `Dumpio::make($x)->red()->label()->channel()->send()`.
-- **Flood control**: `once()` / `limit(n)` / `count()` (call-site keyed; `count()`
-  collapses to one live-updating, `×N` entry in the viewer via `dedupeKey`).
+- **Fluent builder**: `dio($x)->red()->label()->channel()` (and `Dumpio::make()`);
+  `dio()` returns the builder, `dumpio()` is the tap-style passthrough.
+- **Conditional send**: `when($bool)` / `unless($bool)` (a failed gate drops the
+  dump and doesn't count toward flood control).
+- **Flood control**: `once()` / `limit(n)` / `count($name?)` (call-site keyed, or a
+  named counter shared across call-sites; collapses to one live-updating `×N` entry
+  via `dedupeKey`).
+- **Stopwatch**: `Dumpio::stopwatch($name)` → `->lap()` / `->stop()` ship a
+  `measure` dump with elapsed ms + memory delta.
 - **Editor-clickable `file:line`**: caller + stack frames open VS Code / PhpStorm /
   WebStorm / IntelliJ / Cursor / Sublime / TextMate / Zed (Settings → Appearance).
   Main allowlists the editor URL schemes; renderer builds the deep-link.
 
 ## Planned
 
-### P1 — Outbound HTTP client logging (medium cost, high value)
+Each item is cross-referenced to its milestone in `PLAN-IMPLEMENTATION.md`.
+
+### P0 — SDK ergonomics finish (low cost) → M1
+
+- **Runtime `show*` toggles**: `Dumpio::showQueries()/stopShowingQueries()` (+
+  events/cache/jobs/httpClient) flip the existing auto-instrumentation listeners at
+  runtime, not just via boot-time config flags. Extract the listener registration
+  behind a guard flag the listeners read.
+- **Snapshots**: `Dumpio::trace()` (full backtrace as its own entry) and
+  `Dumpio::memory()` (current/peak).
+
+### P1 — Outbound HTTP client logging (medium cost, high value) → M2
 
 "What did this request call out to?" Currently only inbound query/exception are
 captured.
@@ -32,7 +54,13 @@ captured.
   wrapper, or a DI decorator) → `Dumpio::http(...)`.
 - Reuse the existing `http` dump type + status→flag mapping.
 
-### P2 — Screens / clear (low–medium cost)
+### P1b — Monolog handler (low cost, high value) → M2
+
+A `DumpioHandler` (opt-in `dumpio` log channel) streams all app logs into the
+viewer as `log` dumps. Doubles as the in-process source for the log-viewer mode
+(P6). Level → flag mapping; never throws into the logging pipeline.
+
+### P2 — Screens / clear (low–medium cost) → M3
 
 Organize dumps into sessions (Ray's `newScreen()` / `clearScreen()`).
 
@@ -43,16 +71,35 @@ Organize dumps into sessions (Ray's `newScreen()` / `clearScreen()`).
 - Renderer: a screen separator row in the list; "clear" empties the current
   screen. Natural fit per HTTP request or per PHPUnit/Pest test.
 
-### P3 — Laravel views + mail (low cost)
+### P3 — Laravel views + mail + HTML previews → M2 (events) / M4 (preview)
 
-Round out the Laravel listeners (Ray parity):
+Round out the Laravel listeners (Ray parity) and add live HTML preview:
 
 - `view()->composer('*', …)` or the `composing:` events → `event` dumps (channel
   `views`) with view name + bound data keys.
-- `MessageSending` / `MessageSent` mail events → `event`/`model` dumps (channel
-  `mail`), optionally rendering the mailable.
+- `MessageSending` / `MessageSent` mail events → `event` dumps (channel `mail`),
+  flag `listen_mail` — the cheap part, ships in **M2**.
+- **HTML / email / page previews** (the flagship — **M4**): new `html` / `mail`
+  dump types + `Dumpio::html()` / `Dumpio::mailable()` + optional mail
+  auto-intercept, rendered in a **sandboxed `<iframe>`** (no scripts/same-origin,
+  remote resources blocked by default). Build SDK + renderer as one vertical slice.
+  Full spec in `PLAN-PHP-SDK-RAY-PARITY.md` §5a.
 
-### P4 — pause() + update-in-place (high cost — needs a back-channel)
+### P3b — Request correlation & grouping (high value) → M5
+
+Stamp every dump in a request with a shared `origin` (request id / url / user) via
+a Laravel middleware / Symfony subscriber, so the viewer collapses them into one
+request unit instead of a flat stream. Unlocks **N+1 detection** and **request
+waterfall**. Biggest usefulness jump short of the back-channel; no two-way needed.
+
+### P3c — Light profiler + log-viewer modes → M6
+
+Builds on P1b (Monolog) and P3b (correlation). Span/signal-level profiler (NOT
+function-level — that needs Xdebug/SPX): a per-request `profile` aggregate dump +
+a viewer timeline/waterfall mode. Log-viewer mode (Monolog stream + a CLI file-tail
+agent for non-Monolog logs). Bulk of the work is in the viewer.
+
+### P4 — pause() + update-in-place (high cost — needs a back-channel) → M7
 
 Ray's signature features. Both require the viewer to talk **back** to the app,
 which today's one-way fire-and-forget transport can't do.
@@ -64,14 +111,18 @@ which today's one-way fire-and-forget transport can't do.
   viewer-side of in-place updates — generalize it to explicit ids.)
 - Biggest architectural lift; schedule last.
 
-### P5 — Richer payload types (incremental)
+### P5 — Richer payload types (incremental) → M4 onward
 
-`image`, `html`, `markdown`, `json`/`xml` pretty, `mailable`, `phpinfo`. Each is
-a new dump `type` + a small renderer view. Add on demand.
+`image`, `markdown`, `json`/`xml` pretty, `notify`, `phpinfo`, plus the display
+modifiers `->size()` / `->hide()` / `->expand()`. Each is a new dump `type` (or
+envelope hint) + a small renderer view. Add on demand. (`html` / `mailable` are
+promoted to P3 / M4.)
 
 ---
 
-## Livewire 3 & 4 support
+## Livewire 3 & 4 support → parallel track (after M2)
+
+Independent of the milestone chain; can slot in any time after M2.
 
 Livewire AJAX round-trips already flow through the HTTP kernel, so query /
 exception / `dd()` instrumentation **partially** covers them. The Livewire-specific

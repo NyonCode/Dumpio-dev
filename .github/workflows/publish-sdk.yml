@@ -41,6 +41,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Don't persist the default GITHUB_TOKEN as a global git extraheader.
+          # That header overrides the PAT we embed in the push URL below, which
+          # makes the push authenticate as github-actions[bot] (403 on the
+          # target repos).
+          persist-credentials: false
 
       - name: Derive SDK target from tag
         id: target

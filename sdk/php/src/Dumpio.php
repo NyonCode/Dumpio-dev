@@ -374,6 +374,17 @@ final class Dumpio
     }
 
     /**
+     * Start a stopwatch. Call {@see Stopwatch::stop()} (or {@see Stopwatch::lap()})
+     * to ship the elapsed time as a `measure` dump:
+     *
+     *   $sw = Dumpio::stopwatch('import'); … $sw->stop();
+     */
+    public static function stopwatch(string $name = 'default'): Stopwatch
+    {
+        return new Stopwatch($name);
+    }
+
+    /**
      * Report a single timing.
      *
      * Recognised $opts keys: `memory` (bytes), `context`, plus envelope overrides.
